@@ -13,299 +13,237 @@ import {
   Smartphone,
   MousePointer2,
   RefreshCcw,
-  PlusCircle
+  PlusCircle,
+  Shield,
+ 
 } from "lucide-react";
 
 export default function Landing() {
   return (
-    <div className="w-full overflow-x-hidden font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="w-full bg-[#051510] font-sans text-white selection:bg-[#00F5A0] selection:text-[#051510]">
       
       {/* ================= NAVIGATION ================= */}
-      <nav className="fixed top-0 w-full bg-white/90 backdrop-blur-md z-[100] border-b border-slate-100">
+      <nav className="fixed top-0 w-full bg-[#051510]/80 backdrop-blur-md z-[100] border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-200">
-              <Zap size={24} className="text-white fill-current" />
+            <div className="bg-[#00F5A0] p-2 rounded-lg shadow-[0_0_20px_rgba(0,245,160,0.3)]">
+              <Zap size={20} className="text-[#051510] fill-current" />
             </div>
-            <span className="text-2xl font-black tracking-tighter text-slate-900">CPAY</span>
+            <span className="text-xl font-bold tracking-tight">CPay</span>
           </div>
-          <div className="hidden md:flex gap-10 text-sm font-bold text-slate-600">
-            <a href="#how-it-works" className="hover:text-indigo-600 transition-colors">How it Works</a>
-            <a href="#scanner" className="hover:text-indigo-600 transition-colors">Scanner</a>
-            <a href="#rewards" className="hover:text-indigo-600 transition-colors">Rewards</a>
-          </div>
-          <div className="flex items-center gap-4">
-             <a href="/auth" className="hidden sm:block text-sm font-bold text-slate-700 hover:text-indigo-600 px-4">Login</a>
-             <a href="/auth" className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100">
-                Get Started
-             </a>
+          <div className="hidden md:flex gap-8 text-sm font-medium text-gray-400">
+            <a href="#features" className="hover:text-[#00F5A0] transition-colors">Features</a>
+            <a href="#how-it-works" className="hover:text-[#00F5A0] transition-colors">How it Works</a>
+            <a href="#rewards" className="hover:text-[#00F5A0] transition-colors">Rewards</a>
           </div>
         </div>
       </nav>
 
       {/* ================= HERO SECTION ================= */}
-      <section className="relative pt-32 pb-20 lg:pt-52 lg:pb-40 px-6 bg-white overflow-hidden">
-        {/* Background Decorative Elements */}
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-indigo-50 rounded-full blur-3xl opacity-50 -z-10"></div>
-        
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-16 items-center">
-          <div className="text-left animate-in fade-in slide-in-from-left duration-1000">
-            <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest mb-8">
-              <span className="flex h-2 w-2 rounded-full bg-indigo-600 animate-pulse"></span>
-              The Future of P2P is here
+      <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 overflow-hidden">
+        {/* Glow Effects */}
+        <div className="absolute top-1/4 right-0 w-[500px] h-[500px] bg-[#00F5A0]/10 rounded-full blur-[120px] -z-10"></div>
+        <div className="absolute bottom-0 left-0 w-[300px] h-[300px] bg-blue-500/5 rounded-full blur-[100px] -z-10"></div>
+
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+          <div className="text-left">
+            <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 text-[#00F5A0] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-8">
+              <span className="h-2 w-2 rounded-full bg-[#00F5A0] animate-pulse"></span>
+              Next-Gen Crypto Payments
             </div>
-            <h1 className="text-5xl md:text-7xl font-black text-slate-900 leading-[0.95] mb-8 tracking-tight">
+            <h1 className="text-6xl md:text-8xl font-bold leading-[1.1] mb-8 tracking-tight">
               Crypto to INR <br />
-              <span className="text-indigo-600">Made Simple.</span>
+              Payments <span className="text-[#00F5A0]">Made Simple</span>
             </h1>
-            <p className="text-lg md:text-xl text-slate-600 mb-10 max-w-lg leading-relaxed font-medium">
-              Deposit USDT, convert to INR instantly, and pay anyone using scanners. Earn <span className="text-indigo-600 font-bold">Upto 10% cash backs in real money on every payment.</span>
+            <p className="text-lg text-gray-400 mb-10 max-w-lg leading-relaxed">
+              Deposit USDT and pay any UPI or Merchant scanner in seconds. Secure, liquid, and decentralized transactions for the modern economy.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <button className="flex items-center justify-center gap-3 bg-indigo-600 text-white px-10 py-5 rounded-2xl font-black text-lg hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 active:scale-95">
-                Get Started <ArrowRight size={22} />
+            <div className="flex flex-wrap gap-4">
+              <button className="bg-[#00F5A0] text-[#051510] px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 hover:scale-105 transition-transform">
+                Get Started <ArrowRight size={20} />
               </button>
-              <a href="#how-it-works" className="flex items-center justify-center gap-2 bg-slate-50 border border-slate-200 text-slate-700 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-white hover:border-indigo-600 transition-all">
-                How It Works
-              </a>
+          
             </div>
           </div>
           
-          {/* Hero Visual */}
-          <div className="relative">
-            <div className="relative z-10 bg-white border-8 border-slate-900 rounded-[3rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] aspect-[9/16] max-w-[320px] mx-auto overflow-hidden">
-              <div className="bg-slate-900 h-8 w-full flex justify-center items-end pb-1">
-                <div className="h-1 w-12 bg-slate-800 rounded-full"></div>
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between mb-8">
-                  <div className="h-4 w-4 bg-indigo-100 rounded-full"></div>
-                  <div className="h-4 w-12 bg-slate-100 rounded-full"></div>
-                </div>
-                <div className="bg-indigo-600 rounded-3xl p-6 text-white mb-6">
-                  <p className="text-[10px] opacity-70 font-bold uppercase tracking-widest">INR Balance</p>
-                  <p className="text-3xl font-black">₹ 82,450</p>
-                </div>
-                <div className="space-y-4">
-                  <div className="h-12 w-full bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-xs font-bold uppercase">
-                    Scan any QR Code
-                  </div>
-                  {[1,2].map(i => (
-                    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-2xl shadow-sm border border-slate-100">
-                      <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600"><PlusCircle size={18}/></div>
-                      <div className="flex-1">
-                        <div className="h-2 w-16 bg-slate-200 rounded"></div>
-                        <div className="h-2 w-10 bg-slate-100 rounded mt-2"></div>
-                      </div>
-                      <div className="text-green-500 font-bold text-xs">+₹50</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            {/* Floating Badges */}
-            <div className="absolute top-10 -right-4 md:-right-10 z-20 bg-white p-4 rounded-2xl shadow-xl border border-slate-100 animate-bounce">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-lg text-green-600"><Gift size={20}/></div>
+          {/* Dashboard Preview Mockup */}
+          <div className="relative group">
+            <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] p-8 shadow-2xl relative z-10">
+              <div className="flex justify-between items-center mb-10">
                 <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase">Cashback</p>
-                  <p className="text-sm font-bold">+ ₹450.00</p>
+                  <p className="text-xs text-gray-500 uppercase font-bold tracking-widest mb-1">Current Balance</p>
+                  <h3 className="text-4xl font-bold text-[#00F5A0]">₹1,24,500.00</h3>
+                </div>
+                <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                  <PlusCircle className="text-[#00F5A0]" />
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="bg-white/5 p-4 rounded-2xl flex items-center justify-between border border-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-[#00F5A0]/10 p-2.5 rounded-xl"><ScanLine size={20} className="text-[#00F5A0]" /></div>
+                    <div><p className="font-bold text-sm">Grocery Merchant</p><p className="text-xs text-gray-500">2 mins ago</p></div>
+                  </div>
+                  <p className="text-red-400 font-bold">- ₹450</p>
+                </div>
+                <div className="bg-white/5 p-4 rounded-2xl flex items-center justify-between border border-white/5">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-blue-500/10 p-2.5 rounded-xl"><PlusCircle size={20} className="text-blue-400" /></div>
+                    <div><p className="font-bold text-sm">USDT Deposit</p><p className="text-xs text-gray-500">1 hour ago</p></div>
+                  </div>
+                  <p className="text-green-400 font-bold">+ $500.00</p>
                 </div>
               </div>
             </div>
+            {/* Background Glow behind card */}
+            <div className="absolute inset-0 bg-[#00F5A0]/20 blur-[60px] opacity-50"></div>
           </div>
         </div>
       </section>
 
-      {/* ================= WHAT IS CPAY ================= */}
-      <section className="py-24 px-6 bg-slate-50">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-20 items-center">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6 leading-tight">
-                What is CPay?
-              </h2>
-              <p className="text-xl text-slate-600 mb-10 leading-relaxed font-medium">
-                CPay is a <span className="text-indigo-600 font-bold">crypto-funded payment platform</span>. 
-                Instead of dealing with complex exchanges, you deposit USDT and use its INR value 
-                to make instant payments within a secure ecosystem.
-              </p>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <FeatureCheck text="No direct crypto payments" />
-                <FeatureCheck text="INR-based transactions" />
-                <FeatureCheck text="Admin-controlled & secure" />
-                <FeatureCheck text="Cashback rewards" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-4">
-                <StatCard color="bg-indigo-600" title="Security" val="Escrow" />
-                <StatCard color="bg-slate-900" title="Fee" val="Low" />
-              </div>
-              <div className="space-y-4 pt-8">
-                <StatCard color="bg-purple-600" title="Settlement" val="Instant" />
-                <StatCard color="bg-indigo-400" title="Rewards" val="5%" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= HOW IT WORKS ================= */}
-      <section id="how-it-works" className="py-24 px-6 max-w-7xl mx-auto">
-        <div className="text-center mb-20">
-          <h3 className="text-indigo-600 font-black uppercase tracking-[0.2em] text-sm mb-4">Workflow</h3>
-          <h2 className="text-4xl md:text-6xl font-black text-slate-900">How CPay Works</h2>
+      {/* ================= WHY CHOOSE CPAY ================= */}
+      <section id="features" className="py-24 px-6 bg-[#030D0A]">
+        <div className="max-w-7xl mx-auto text-center mb-16">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Why Choose CPay?</h2>
+          <p className="text-gray-500 max-w-2xl mx-auto">We bridge the gap between your digital assets and real-world spending with a focus on security and efficiency.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
-          <StepCard 
-            step="1"
-            icon={<Users className="text-indigo-600" size={32} />} 
-            title="Signup" 
-            desc="Create account in 30s" 
+        <div className="max-w-7xl mx-auto grid md:grid-cols-3 gap-8">
+          <FeatureCard 
+            icon={<ShieldCheck className="text-[#00F5A0]" />}
+            title="Secure Transactions"
+            points={["End-to-end encrypted payment tunnels", "Multi-sig USDT deposit wallets", "Fraud detection algorithms"]}
           />
-          <StepCard 
-            step="2"
-            icon={<Wallet className="text-indigo-600" size={32} />} 
-            title="Deposit" 
-            desc="USDT (TRC20/BEP20)" 
+          <FeatureCard 
+            icon={<Zap className="text-[#00F5A0]" />}
+            title="Instant Conversion"
+            points={["Real-time USDT to INR rates", "Zero slippage on small trades", "Immediate settlement to scanner"]}
           />
-          <StepCard 
-            step="3"
-            icon={<RefreshCcw className="text-indigo-600" size={32} />} 
-            title="Convert" 
-            desc="Instant INR value" 
-          />
-          <StepCard 
-            step="4"
-            icon={<ScanLine className="text-indigo-600" size={32} />} 
-            title="Pay" 
-            desc="Use any Scanner" 
-          />
-          <StepCard 
-            step="5"
-            icon={<Gift className="text-indigo-600" size={32} />} 
-            title="Earn" 
-            desc="5% Back Instantly" 
+          <FeatureCard 
+            icon={<Wallet className="text-[#00F5A0]" />}
+            title="Managed Liquidity"
+            points={["Admin-controlled P2P pools", "Guaranteed INR payout for scans", "24/7 liquidity availability"]}
           />
         </div>
       </section>
 
-      {/* ================= SCANNER EXPLAINED ================= */}
-      <section id="scanner" className="py-24 px-6 bg-slate-900 text-white rounded-[3rem] mx-4 mb-24 overflow-hidden relative">
-        <div className="absolute bottom-0 right-0 opacity-10"><ScanLine size={400} /></div>
-        <div className="max-w-5xl mx-auto relative z-10">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-black mb-8 leading-tight">
-                Scanner Payment <br /><span className="text-indigo-400">Simplified</span>
-              </h2>
-              <p className="text-slate-400 text-lg mb-10 font-medium">
-                Our unique chat-based payment system ensures fast, fair, and secure settlements.
-              </p>
-              <div className="space-y-6">
-                <ScannerFeature title="First-Come-First-Serve" desc="The first user to pay the uploaded scanner secures the deal." />
-                <ScannerFeature title="One-Time Use" desc="Once a scanner is paid, it automatically disappears from the feed." />
-                <ScannerFeature title="Instant Settlement" desc="No waiting. Your payment is verified and processed in real-time." />
-              </div>
-            </div>
-            <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-8">
-                <span className="bg-green-500 w-3 h-3 rounded-full animate-pulse"></span>
-                <span className="text-xs font-black uppercase tracking-widest text-indigo-400">Live Chat Feed</span>
-              </div>
-              <div className="space-y-4">
-                <div className="bg-white/10 p-5 rounded-2xl border border-white/10">
-                   <div className="flex items-center gap-3 mb-4">
-                     <div className="w-8 h-8 rounded-full bg-slate-700"></div>
-                     <span className="text-sm font-bold text-slate-300">Merchant #04</span>
-                   </div>
-                   <div className="aspect-square bg-white rounded-xl mb-4 flex items-center justify-center">
-                      <ScanLine size={100} className="text-slate-900 opacity-20" />
-                   </div>
-                   <button className="w-full bg-indigo-600 py-4 rounded-xl font-black hover:bg-indigo-500 transition-all flex items-center justify-center gap-2">
-                     PAY ₹1,500 <MousePointer2 size={18} />
-                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* ================= 5 STEPS TO FREEDOM ================= */}
+      <section id="how-it-works" className="py-24 px-6">
+        <div className="max-w-7xl mx-auto text-center mb-20">
+          <h2 className="text-5xl md:text-7xl font-bold mb-4">5 Steps to Freedom</h2>
         </div>
-      </section>
 
-      {/* ================= REWARDS ================= */}
-      <section id="rewards" className="py-24 px-6 max-w-7xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Cashback & Referrals</h2>
-          <p className="text-lg text-slate-600 font-medium">Maximize your crypto value with our multi-tier reward system.</p>
-        </div>
-        
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="group bg-indigo-50 p-10 rounded-[3rem] border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all duration-500">
-            <Gift className="mb-6 text-indigo-600 group-hover:text-white transition-colors" size={48} />
-            <h3 className="text-3xl font-black mb-4">5% Paying Cashback</h3>
-            <p className="opacity-80 font-medium mb-6 leading-relaxed">Every time you pay a scanner, 5% of the total INR value is instantly credited back to your reward wallet.</p>
-            <div className="text-sm font-black uppercase tracking-widest bg-white/20 inline-block px-4 py-2 rounded-lg">Example: Pay ₹10,000 → Get ₹500 Back</div>
-          </div>
+        <div className="max-w-7xl mx-auto relative">
+          {/* Connector Line */}
+          <div className="hidden lg:block absolute top-12 left-0 w-full h-[2px] bg-white/5 -z-10"></div>
           
-          <div className="group bg-slate-900 p-10 rounded-[3rem] text-white hover:bg-indigo-600 transition-all duration-500">
-            <Users className="mb-6 text-indigo-400 group-hover:text-white transition-colors" size={48} />
-            <h3 className="text-3xl font-black mb-4">1% Referral Bonus</h3>
-            <p className="text-slate-400 group-hover:text-indigo-100 font-medium mb-6 leading-relaxed">Invite your network and earn 1% of every USDT conversion they make. Passive income on every deposit.</p>
-            <div className="text-sm font-black uppercase tracking-widest bg-white/10 inline-block px-4 py-2 rounded-lg">Reusable & Withdraw-friendly</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-12">
+            <StepItem number="1" title="Signup" desc="Create an account in under 30 seconds with minimal KYC." />
+            <StepItem number="2" title="Deposit USDT" desc="Send USDT to your personal CPay secure wallet." />
+            <StepItem number="3" title="Convert" desc="Convert your USDT balance to INR instantly." />
+            <StepItem number="4" title="Pay Scanner" desc="Scan any merchant QR code and pay with INR." />
+            <StepItem number="5" title="Earn Cashback" desc="Get rewarded for every successful transaction." />
           </div>
         </div>
       </section>
 
-      {/* ================= WHY CPAY ================= */}
-      <section className="py-24 px-6 bg-slate-50 border-y border-slate-200">
-        <div className="max-w-7xl mx-auto text-center">
-          <h2 className="text-4xl font-black text-slate-900 mb-16">Why Users Trust CPay</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <WhyCard icon={<ShieldCheck size={32}/>} title="Secure Admin Escrow" />
-            <WhyCard icon={<Zap size={32}/>} title="Instant INR Liquidity" />
-            <WhyCard icon={<IndianRupee size={32}/>} title="Zero Complexity" />
-            <WhyCard icon={<Lock size={32}/>} title="USDT Asset Backing" />
+      {/* ================= SMART SCANNER QUEUE ================= */}
+      <section className="py-24 px-6 bg-[#030D0A]">
+        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
+          {/* Scanner Mockup */}
+          <div className="flex justify-center">
+            <div className="bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-6 w-full max-w-[320px] shadow-2xl relative">
+              <div className="border-2 border-dashed border-[#00F5A0]/30 rounded-2xl aspect-square flex flex-col items-center justify-center mb-6">
+                 <div className="bg-[#00F5A0]/10 p-4 rounded-full mb-3"><Smartphone className="text-[#00F5A0]" /></div>
+                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Upload Screenshot</p>
+              </div>
+              <div className="bg-white/5 rounded-xl p-4 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                   <p className="text-[10px] text-gray-500 uppercase font-bold">Queue Status</p>
+                   <span className="bg-[#00F5A0]/20 text-[#00F5A0] text-[10px] px-2 py-0.5 rounded-full font-bold">12 Active</span>
+                </div>
+                <p className="text-sm font-bold">Active Scanners</p>
+              </div>
+              <button className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-xl font-bold shadow-[0_0_20px_rgba(0,245,160,0.2)]">Confirm & Pay</button>
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-4xl md:text-6xl font-bold mb-8">Smart Scanner Queue</h2>
+            <p className="text-gray-400 text-lg mb-10 leading-relaxed font-medium">
+              Our proprietary "first-come-first-serve" scanner payment system ensures maximum efficiency. Upload your QR, and our automated P2P matching engine connects you with the fastest available INR liquidity.
+            </p>
+            <div className="space-y-8">
+              <div className="flex gap-6">
+                <div className="bg-white/5 p-4 rounded-xl h-fit border border-white/10"><Users className="text-[#00F5A0]" /></div>
+                <div>
+                  <h4 className="text-xl font-bold mb-2">High-Speed Matching</h4>
+                  <p className="text-gray-500">Automated matching with peer-to-peer liquidity providers for instant payouts.</p>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                <div className="bg-white/5 p-4 rounded-xl h-fit border border-white/10"><RefreshCcw className="text-[#00F5A0]" /></div>
+                <div>
+                  <h4 className="text-xl font-bold mb-2">Zero Waiting Time</h4>
+                  <p className="text-gray-500">The queue system processes transactions in real-time, 24 hours a day.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= REWARDS SECTION ================= */}
+      <section id="rewards" className="py-24 px-6 text-center">
+        <h2 className="text-5xl md:text-7xl font-bold mb-4 italic">Earn While You Spend</h2>
+        <p className="text-gray-500 mb-16">Maximize your crypto value with our unique cashback program.</p>
+
+        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
+          <div className="bg-white/5 border border-[#00F5A0]/20 p-12 rounded-[2.5rem] relative group hover:bg-[#00F5A0]/5 transition-all">
+            <h3 className="text-[#00F5A0] text-7xl font-bold mb-4 tracking-tighter">5%</h3>
+            <h4 className="text-2xl font-bold mb-4">Transaction Cashback</h4>
+            <p className="text-gray-500 mb-8">Receive 5% back on every single scanner payment you make. Credited instantly to your CPay wallet.</p>
+            <button className="bg-[#00F5A0]/10 text-[#00F5A0] border border-[#00F5A0]/30 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">Standard Reward</button>
+          </div>
+
+          <div className="bg-white/5 border border-white/10 p-12 rounded-[2.5rem] hover:bg-white/10 transition-all">
+            <h3 className="text-white text-7xl font-bold mb-4 tracking-tighter">1%</h3>
+            <h4 className="text-2xl font-bold mb-4">Referral Cashback</h4>
+            <p className="text-gray-500 mb-8">Invite your friends and earn 1% on every transaction they make—forever. Build your passive income stream.</p>
+            <button className="bg-white/5 text-gray-400 border border-white/10 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">Referral Bonus</button>
           </div>
         </div>
       </section>
 
       {/* ================= FINAL CTA ================= */}
-      <section className="py-32 px-6 text-center relative overflow-hidden">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-5xl md:text-7xl font-black text-slate-900 mb-8 leading-tight">
-            Start using your crypto <br /><span className="text-indigo-600 underline decoration-indigo-200 decoration-8 underline-offset-8">the smart way.</span>
-          </h2>
-          <div className="flex flex-col sm:flex-row justify-center gap-6">
-            <button className="bg-indigo-600 text-white px-12 py-6 rounded-[2rem] font-black text-xl hover:bg-indigo-700 transition-all shadow-2xl shadow-indigo-200 active:scale-95">
-              Create Free Account
-            </button>
-            <button className="bg-white border-2 border-slate-200 text-slate-900 px-12 py-6 rounded-[2rem] font-black text-xl hover:border-slate-900 transition-all">
-              Login to CPay
-            </button>
+      <section className="py-24 px-6 flex justify-center">
+        <div className="bg-[#0A1F1A] border border-white/10 rounded-[3rem] p-12 md:p-20 text-center max-w-5xl w-full relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#00F5A0]/10 blur-[80px]"></div>
+          <h2 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">Ready to spend your crypto?</h2>
+          <p className="text-gray-400 mb-12 text-lg max-w-2xl mx-auto">Join 10,000+ users who are already using CPay to bridge their digital assets with the Indian economy.</p>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <input type="email" placeholder="Enter your email" className="bg-black/20 border border-white/10 rounded-xl px-6 py-4 w-full max-w-xs focus:outline-none focus:border-[#00F5A0]/50" />
+            <button className="bg-[#00F5A0] text-[#051510] px-8 py-4 rounded-xl font-bold text-lg hover:shadow-[0_0_20px_rgba(0,245,160,0.3)]">Get Early Access</button>
           </div>
-          <p className="mt-10 text-slate-400 font-bold flex items-center justify-center gap-2">
-            <CheckCircle2 size={18} className="text-green-500" /> Trusted by 5,000+ Active Users
-          </p>
         </div>
       </section>
 
       {/* ================= FOOTER ================= */}
-      <footer className="bg-white border-t border-slate-100 py-16 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
+      <footer className="py-12 border-t border-white/5 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-1.5 rounded-lg text-white"><Zap size={20} /></div>
-            <span className="text-xl font-black tracking-tighter">CPAY</span>
+             <div className="bg-white/5 p-1.5 rounded-lg border border-white/10"><Zap size={16} className="text-[#00F5A0]" /></div>
+             <span className="font-bold">CPay</span>
           </div>
-          <div className="flex gap-8 text-sm font-bold text-slate-500">
-            <a href="#" className="hover:text-indigo-600">Privacy</a>
-            <a href="#" className="hover:text-indigo-600">Terms</a>
-            <a href="#" className="hover:text-indigo-600">Support</a>
+          <div className="flex gap-8 text-xs text-gray-500 font-bold uppercase tracking-widest">
+            <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-white transition-colors">Support</a>
+            <a href="#" className="hover:text-white transition-colors">Telegram</a>
           </div>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-            © 2026 CPay Ecosystem. Secure Payments.
-          </p>
+          <p className="text-[10px] text-gray-600 font-bold tracking-widest uppercase">© 2024 CPay Technologies. All rights reserved.</p>
         </div>
       </footer>
     </div>
@@ -314,50 +252,29 @@ export default function Landing() {
 
 /* ================= HELPER COMPONENTS ================= */
 
-const StepCard = ({ step, icon, title, desc }) => (
-  <div className="relative group bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-100/50 flex flex-col items-center text-center transition-all hover:-translate-y-2">
-    <div className="bg-slate-50 w-20 h-20 rounded-3xl flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+const FeatureCard = ({ icon, title, points }) => (
+  <div className="bg-[#0A1F1A] border border-white/5 p-8 rounded-[2rem] text-left hover:border-[#00F5A0]/20 transition-all group">
+    <div className="bg-white/5 w-12 h-12 rounded-xl flex items-center justify-center mb-6 group-hover:bg-[#00F5A0]/10 transition-colors">
       {icon}
     </div>
-    <div className="absolute top-4 right-4 text-4xl font-black text-slate-100 group-hover:text-indigo-50 transition-colors">
-      0{step}
-    </div>
-    <h4 className="text-lg font-black text-slate-900 mb-2">{title}</h4>
-    <p className="text-slate-500 font-medium text-sm leading-relaxed">{desc}</p>
+    <h4 className="text-xl font-bold mb-6">{title}</h4>
+    <ul className="space-y-4">
+      {points.map((p, i) => (
+        <li key={i} className="flex items-center gap-3 text-sm text-gray-400 font-medium">
+          <div className="bg-[#00F5A0]/20 rounded-full p-1"><CheckCircle2 size={12} className="text-[#00F5A0]" /></div>
+          {p}
+        </li>
+      ))}
+    </ul>
   </div>
 );
 
-const FeatureCheck = ({ text }) => (
-  <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-    <CheckCircle2 size={20} className="text-green-500 shrink-0" />
-    <span className="font-bold text-slate-700 text-sm">{text}</span>
-  </div>
-);
-
-const StatCard = ({ color, title, val }) => (
-  <div className={`${color} p-6 rounded-[2.5rem] text-white shadow-lg`}>
-    <p className="text-[10px] font-black uppercase opacity-60 tracking-widest mb-1">{title}</p>
-    <p className="text-2xl font-black">{val}</p>
-  </div>
-);
-
-const ScannerFeature = ({ title, desc }) => (
-  <div className="flex gap-5">
-    <div className="mt-1 flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center">
-      <CheckCircle2 size={14} className="text-white" />
+const StepItem = ({ number, title, desc }) => (
+  <div className="flex flex-col items-center text-center relative group">
+    <div className="w-20 h-20 rounded-full bg-[#051510] border-[3px] border-white/10 flex items-center justify-center mb-6 group-hover:border-[#00F5A0] shadow-xl group-hover:shadow-[0_0_30px_rgba(0,245,160,0.2)] transition-all">
+      <span className="text-2xl font-black text-white group-hover:text-[#00F5A0]">{number}</span>
     </div>
-    <div>
-      <h5 className="font-black text-xl mb-1">{title}</h5>
-      <p className="text-slate-400 font-medium">{desc}</p>
-    </div>
-  </div>
-);
-
-const WhyCard = ({ icon, title }) => (
-  <div className="flex flex-col items-center gap-4 group">
-    <div className="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform">
-      {icon}
-    </div>
-    <p className="font-black text-sm text-slate-900 uppercase tracking-tight">{title}</p>
+    <h4 className="text-lg font-bold mb-2">{title}</h4>
+    <p className="text-xs text-gray-500 font-bold leading-relaxed">{desc}</p>
   </div>
 );

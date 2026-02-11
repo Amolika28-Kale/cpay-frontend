@@ -1,19 +1,90 @@
-import React from "react";
-import { 
-  Wallet, 
-  PlusCircle, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Scan, 
-  Gift, 
-  History, 
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Wallet,
+  PlusCircle,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Scan,
+  Gift,
+  History,
   TrendingUp,
   LayoutDashboard,
   MessageSquare,
-  UserCircle
+  UserCircle,
+  LogOut
 } from "lucide-react";
 
-export default function Dashboard() {
+export default function Dashboard({ user }) {
+  const [walletData, setWalletData] = useState({ USDT: 0, INR: 0, Cashback: 0 });
+  const [transactions, setTransactions] = useState([]);
+  const [scanners, setScanners] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          navigate('/auth');
+          return;
+        }
+
+        const [walletRes, transactionRes, scannerRes] = await Promise.all([
+          fetch('http://localhost:5000/api/wallet/balances', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('http://localhost:5000/api/wallet/transactions', {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch('http://localhost:5000/api/scanner/active', {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+
+        if (walletRes.status === 401 || transactionRes.status === 401 || scannerRes.status === 401) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          navigate('/auth');
+          return;
+        }
+
+        if (walletRes.ok) {
+          const walletBalances = await walletRes.json();
+          setWalletData(walletBalances);
+        }
+
+        if (transactionRes.ok) {
+          const txns = await transactionRes.json();
+          setTransactions(txns.slice(0, 5)); // Last 5 transactions
+        }
+
+        if (scannerRes.ok) {
+          const activeScanners = await scannerRes.json();
+          setScanners(activeScanners.slice(0, 2)); // First 2 active scanners
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [user]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/auth');
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-24 lg:pb-0 lg:pl-64">
       
@@ -56,8 +127,8 @@ export default function Dashboard() {
             <div className="absolute -right-10 -top-10 bg-white/10 w-40 h-40 rounded-full blur-3xl group-hover:bg-white/20 transition-all"></div>
             <p className="text-indigo-100 text-sm font-bold uppercase tracking-widest mb-2">Total Balance</p>
             <div className="flex items-baseline gap-2">
-              <h2 className="text-4xl font-black">₹45,280.00</h2>
-              <span className="text-indigo-200 font-medium">542.10 USDT</span>
+              <h2 className="text-4xl font-black">₹{walletData.INR?.toFixed(2) || '0.00'}</h2>
+              <span className="text-indigo-200 font-medium">{walletData.USDT?.toFixed(2) || '0.00'} USDT</span>
             </div>
             
             <div className="flex gap-3 mt-8">
@@ -74,7 +145,7 @@ export default function Dashboard() {
           <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-slate-200 relative overflow-hidden">
             <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-2">Cashback Rewards</p>
             <div className="flex items-baseline gap-2">
-              <h2 className="text-4xl font-black text-indigo-400">₹1,240.50</h2>
+              <h2 className="text-4xl font-black text-indigo-400">₹{walletData.Cashback?.toFixed(2) || '0.00'}</h2>
               <span className="text-slate-500 font-medium">Earned</span>
             </div>
             <div className="mt-8 flex items-center gap-4 bg-white/5 p-4 rounded-2xl border border-white/10">
@@ -97,8 +168,16 @@ export default function Dashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ScannerCard amount="5,000" user="Merchant_Ind" time="2m ago" />
-            <ScannerCard amount="1,200" user="Travel_Pay" time="Just now" />
+            {scanners.length > 0 ? scanners.map(scanner => (
+              <ScannerCard
+                key={scanner._id}
+                amount={scanner.amount}
+                user={scanner.user.name}
+                time={new Date(scanner.createdAt).toLocaleString()}
+              />
+            )) : (
+              <p className="text-slate-500">No active scanners available</p>
+            )}
           </div>
         </section>
 

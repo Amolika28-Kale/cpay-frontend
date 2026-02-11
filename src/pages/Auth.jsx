@@ -1,18 +1,60 @@
 import React, { useState } from "react";
-import { 
-  Zap, 
-  Mail, 
-  Lock, 
-  User, 
-  ArrowRight, 
-  ShieldCheck, 
-  Eye, 
-  EyeOff 
+import { useNavigate } from "react-router-dom";
+import {
+  Zap,
+  Mail,
+  Lock,
+  User,
+  ArrowRight,
+  ShieldCheck,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', referralCode: '' });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleInputChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
+      const payload = isLogin
+        ? { email: formData.email, password: formData.password }
+        : { name: formData.name, email: formData.email, password: formData.password, referralCode: formData.referralCode || undefined };
+
+      const response = await fetch(`http://localhost:5000${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        navigate(data.user.role === 'admin' ? '/admin-dashboard' : '/dashboard');
+      } else {
+        setError(data.message || 'An error occurred');
+      }
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-50 via-white to-indigo-50 flex flex-col items-center justify-center p-6 font-sans">
@@ -40,15 +82,21 @@ export default function Auth() {
             </p>
           </div>
 
-          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-            
+          {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+
+          <form className="space-y-4" onSubmit={handleSubmit}>
+
             {/* Name Input (Only for Signup) */}
             {!isLogin && (
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                <input 
-                  type="text" 
-                  placeholder="Full Name" 
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Full Name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  required={!isLogin}
                   className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
                 />
               </div>
@@ -57,9 +105,13 @@ export default function Auth() {
             {/* Email Input */}
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input 
-                type="email" 
-                placeholder="Email Address" 
+              <input
+                type="email"
+                name="email"
+                placeholder="Email Address"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
               />
             </div>
@@ -67,12 +119,16 @@ export default function Auth() {
             {/* Password Input */}
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="Password" 
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
                 className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
               />
-              <button 
+              <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
@@ -80,6 +136,20 @@ export default function Auth() {
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+
+            {/* Referral Code (Only for Signup) */}
+            {!isLogin && (
+              <div className="relative">
+                <input
+                  type="text"
+                  name="referralCode"
+                  placeholder="Referral Code (Optional)"
+                  value={formData.referralCode}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                />
+              </div>
+            )}
 
             {isLogin && (
               <div className="text-right px-1">
