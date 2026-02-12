@@ -1,11 +1,12 @@
 import React from "react";
-import { 
-  Wallet, 
-  ScanLine, 
-  IndianRupee, 
-  Gift, 
-  ShieldCheck, 
-  Users, 
+import { Link } from "react-router-dom";
+import {
+  Wallet,
+  ScanLine,
+  IndianRupee,
+  Gift,
+  ShieldCheck,
+  Users,
   Zap,
   ArrowRight,
   CheckCircle2,
@@ -15,7 +16,7 @@ import {
   RefreshCcw,
   PlusCircle,
   Shield,
- 
+
 } from "lucide-react";
 
 export default function Landing() {
@@ -59,10 +60,11 @@ export default function Landing() {
               Deposit USDT and pay any UPI or Merchant scanner in seconds. Secure, liquid, and decentralized transactions for the modern economy.
             </p>
             <div className="flex flex-wrap gap-4">
-              <button className="bg-[#00F5A0] text-[#051510] px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 hover:scale-105 transition-transform">
-                Get Started <ArrowRight size={20} />
-              </button>
-          
+              <Link to="/auth">
+                <button className="bg-[#00F5A0] text-[#051510] px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-2 hover:scale-105 transition-transform">
+                  Get Started <ArrowRight size={20} />
+                </button>
+              </Link>
             </div>
           </div>
           

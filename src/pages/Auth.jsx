@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   Zap,
   Mail,
@@ -8,14 +8,28 @@ import {
   ArrowRight,
   ShieldCheck,
   Eye,
-  EyeOff
+  EyeOff,
+  UserPlus,
+  ChevronLeft
 } from "lucide-react";
+
+import {
+  userLogin,
+  userRegister,
+  adminLogin
+} from "../services/authService";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', referralCode: '' });
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    referralCode: ""
+  });
+
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -25,86 +39,112 @@ export default function Auth() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/signup';
-      const payload = isLogin
-        ? { email: formData.email, password: formData.password }
-        : { name: formData.name, email: formData.email, password: formData.password, referralCode: formData.referralCode || undefined };
+      let response;
 
-      const response = await fetch(`http://localhost:5000${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+      if (isLogin) {
+        // First try admin login
+        response = await adminLogin(formData.email, formData.password);
 
-      const data = await response.json();
+        // If not admin, try user login
+        if (!response.ok) {
+          response = await userLogin(formData.email, formData.password);
+        }
+      } else {
+        response = await userRegister({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          referralCode: formData.referralCode || undefined
+        });
+      }
 
       if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        navigate(data.user.role === 'admin' ? '/admin-dashboard' : '/dashboard');
+        localStorage.setItem("token", response.data.token);
+        localStorage.setItem("user", JSON.stringify(response.data.user));
+
+        if (response.data.user.role === "admin") {
+          navigate("/admin-dashboard");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
-        setError(data.message || 'An error occurred');
+        setError(response.data.message || "Authentication failed");
       }
+
     } catch (err) {
-      setError('Network error. Please try again.');
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-50 via-white to-indigo-50 flex flex-col items-center justify-center p-6 font-sans">
+    <div className="min-h-screen bg-[#051510] text-white flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
       
-      {/* Logo / Back to Home */}
-      <a href="/" className="flex items-center gap-2 mb-8 group">
-        <div className="bg-indigo-600 p-2 rounded-xl shadow-lg shadow-indigo-200 group-hover:scale-110 transition-transform">
-          <Zap size={24} className="text-white fill-current" />
-        </div>
-        <span className="text-2xl font-black tracking-tighter text-slate-900">CPAY</span>
-      </a>
+      {/* Background Glows */}
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#00F5A0]/10 rounded-full blur-[120px] -z-10"></div>
+      <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-500/5 rounded-full blur-[120px] -z-10"></div>
 
-      <div className="w-full max-w-[400px]">
-        <div className="bg-white border border-slate-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(79,70,229,0.1)] p-8 md:p-10">
+      {/* Back to Home */}
+      <Link to="/" className="absolute top-10 left-10 flex items-center gap-2 text-gray-500 hover:text-[#00F5A0] transition-colors font-bold text-sm uppercase tracking-widest group">
+        <ChevronLeft size={18} className="group-hover:-translate-x-1 transition-transform" /> Back to Home
+      </Link>
+
+      {/* Logo */}
+      <div className="flex flex-col items-center mb-10 group">
+        <div className="bg-[#00F5A0] p-3 rounded-2xl shadow-[0_0_30px_rgba(0,245,160,0.3)] mb-4 transition-transform group-hover:scale-110">
+          <Zap size={32} className="text-[#051510] fill-current" />
+        </div>
+        <span className="text-3xl font-black tracking-tighter italic">CPAY</span>
+      </div>
+
+      <div className="w-full max-w-[440px] relative">
+        {/* Decorative Border Layer */}
+        <div className="absolute -inset-0.5 bg-gradient-to-br from-[#00F5A0]/20 to-transparent rounded-[2.5rem] blur-sm"></div>
+        
+        {/* Main Card */}
+        <div className="relative bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] shadow-2xl p-8 md:p-12 backdrop-blur-xl">
           
-          {/* Toggle Header */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-black text-slate-900 mb-2">
+          <div className="text-center mb-10">
+            <h2 className="text-4xl font-bold mb-3 tracking-tight">
               {isLogin ? "Welcome Back" : "Create Account"}
             </h2>
-            <p className="text-slate-500 font-medium">
-              {isLogin 
-                ? "Enter your details to access your wallet" 
-                : "Join 5,000+ users earning 5% cashback"}
+            <p className="text-gray-500 font-medium text-sm">
+              {isLogin
+                ? "Enter your credentials to access your secure wallet"
+                : "Join the next-gen crypto payment ecosystem"}
             </p>
           </div>
 
-          {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-xl text-center mb-6 text-xs font-bold uppercase tracking-widest">
+              {error}
+            </div>
+          )}
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
+          <form className="space-y-5" onSubmit={handleSubmit}>
 
-            {/* Name Input (Only for Signup) */}
             {!isLogin && (
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
                 <input
                   type="text"
                   name="name"
                   placeholder="Full Name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  required={!isLogin}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                  required
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white"
                 />
               </div>
             )}
 
-            {/* Email Input */}
-            <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
               <input
                 type="email"
                 name="email"
@@ -112,13 +152,12 @@ export default function Auth() {
                 value={formData.email}
                 onChange={handleInputChange}
                 required
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white"
               />
             </div>
 
-            {/* Password Input */}
-            <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
@@ -126,73 +165,76 @@ export default function Auth() {
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 pl-12 pr-12 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-12 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-600 hover:text-[#00F5A0] transition-colors"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
 
-            {/* Referral Code (Only for Signup) */}
             {!isLogin && (
-              <div className="relative">
+              <div className="relative group">
+                <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
                 <input
                   type="text"
                   name="referralCode"
                   placeholder="Referral Code (Optional)"
                   value={formData.referralCode}
                   onChange={handleInputChange}
-                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-4 px-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium"
+                  className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white"
                 />
               </div>
             )}
 
-            {isLogin && (
-              <div className="text-right px-1">
-                <button className="text-xs font-bold text-indigo-600 hover:underline">Forgot Password?</button>
-              </div>
-            )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#00F5A0] text-[#051510] py-5 rounded-2xl font-black text-lg shadow-[0_10px_30px_rgba(0,245,160,0.2)] hover:shadow-[0_10px_40px_rgba(0,245,160,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-60 mt-4"
+            >
+              {loading
+                ? "Processing..."
+                : isLogin
+                ? "Sign In"
+                : "Create Account"}
 
-            {/* Action Button */}
-            <button className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-lg shadow-xl shadow-indigo-200 hover:bg-indigo-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 group">
-              {isLogin ? "Sign In" : "Get Started"}
-              <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+              {!loading && (
+                <ArrowRight
+                  size={20}
+                  className="group-hover:translate-x-1 transition-transform"
+                />
+              )}
             </button>
           </form>
 
-          {/* Social Divider */}
-          <div className="relative my-8">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-            <div className="relative flex justify-center text-xs uppercase font-black tracking-widest text-slate-400">
-              <span className="bg-white px-4">Secure Access</span>
-            </div>
+          {/* Switch Tab */}
+          <div className="mt-10 pt-6 border-t border-white/5 text-center">
+            <p className="text-gray-500 font-bold text-sm">
+              {isLogin ? "New to the platform?" : "Already have an account?"}
+              <button
+                onClick={() => setIsLogin(!isLogin)}
+                className="text-[#00F5A0] hover:underline ml-2 italic font-black"
+              >
+                {isLogin ? "Sign Up Now" : "Login Here"}
+              </button>
+            </p>
           </div>
-
-          {/* Switch Link */}
-          <p className="text-center text-slate-600 font-bold">
-            {isLogin ? "New to CPay?" : "Already have an account?"}{" "}
-            <button 
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-indigo-600 hover:underline ml-1"
-            >
-              {isLogin ? "Create Account" : "Login Now"}
-            </button>
-          </p>
         </div>
 
-        {/* Security Footer */}
-        <div className="mt-8 flex items-center justify-center gap-4 text-slate-400">
-          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider">
-            <ShieldCheck size={16} className="text-green-500" />
-            AES-256 Encryption
-          </div>
-          <div className="w-1 h-1 bg-slate-300 rounded-full"></div>
-          <div className="text-xs font-bold uppercase tracking-wider">
-            USDT Secured
+        {/* Footer Security Info */}
+        <div className="mt-10 flex flex-col items-center gap-4">
+          <div className="flex items-center gap-6 text-gray-600">
+            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest">
+              <ShieldCheck size={14} className="text-[#00F5A0]" />
+              AES-256 Secure
+            </div>
+            <div className="w-1 h-1 bg-white/10 rounded-full"></div>
+            <div className="text-[10px] font-black uppercase tracking-widest">
+              2FA Ready
+            </div>
           </div>
         </div>
       </div>
