@@ -151,3 +151,12 @@ export const getBalance = async (type) => {
   const data = await res.json();
   return data?.balance || 0;  
 };
+
+export const selfPay = async (amount) => {
+  const res = await fetch(`${API_BASE}/wallet/self-pay`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ amount }),
+  });
+  return res.json();
+};

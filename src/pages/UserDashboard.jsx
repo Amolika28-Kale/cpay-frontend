@@ -18,7 +18,8 @@ import {
   convertUsdtToInr,
   getActivePaymentMethods,
   confirmScannerPayment,
-  getCurrentRate 
+  getCurrentRate, 
+  selfPay
 } from "../services/apiService";
 
 
@@ -48,6 +49,11 @@ const [paymentMode, setPaymentMode] = useState("INR");
 const [paymentScreenshot, setPaymentScreenshot] = useState(null);
 
 const [depositScreenshot, setDepositScreenshot] = useState(null);
+const [showSelfPay, setShowSelfPay] = useState(false);
+const [qrData, setQrData] = useState("");
+const [amount, setAmount] = useState("");
+const [scannerActive, setScannerActive] = useState(false);
+
 
   const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
 
@@ -148,10 +154,23 @@ const getTimeLeft = (expiry) => {
   return `${mins}m ${secs}s`;
 };
 
-const handlePayClick = (scannerId, mode) => {
-  setSelectedScanner(scannerId);
-  setPaymentMode(mode);
+const handlePayClick = async (scannerId, mode) => {
+  setActionLoading(true);
+
+  const res = await payScanner(scannerId, mode);
+
+ if (res?.message && !res._id)
+ {
+    alert(res.message);
+    setSelectedScanner(scannerId);
+    setPaymentMode(mode);
+  } else {
+    alert("Unable to lock scanner");
+  }
+
+  setActionLoading(false);
 };
+
 
 const handleConfirmPayment = async () => {
   if (!paymentScreenshot)
@@ -159,16 +178,6 @@ const handleConfirmPayment = async () => {
 
   setActionLoading(true);
 
-  // Step 1: Pay
-  const payRes = await payScanner(selectedScanner, paymentMode);
-
-if (!payRes.success && payRes.message) {
-      alert(payRes?.message || "Payment failed");
-    setActionLoading(false);
-    return;
-  }
-
-  // Step 2: Confirm with screenshot
   const confirmRes = await confirmScannerPayment(
     selectedScanner,
     paymentScreenshot
@@ -187,6 +196,7 @@ if (!payRes.success && payRes.message) {
   loadAllData();
   setActionLoading(false);
 };
+
 
 const handleCreateScanner = async () => {
   if (!uploadAmount || uploadAmount <= 0)
@@ -211,6 +221,25 @@ const handleCreateScanner = async () => {
   setActionLoading(false);
 };
 
+const startScanner = () => {
+  const qrCode = new Html5Qrcode("reader");
+
+  qrCode.start(
+    { facingMode: "environment" },
+    {
+      fps: 10,
+      qrbox: 250
+    },
+    (decodedText) => {
+      setQrData(decodedText);
+      qrCode.stop();
+      setScannerActive(false);
+    },
+    (errorMessage) => {}
+  );
+
+  setScannerActive(true);
+};
 
   // --- Sub-Pages ---
   const OverviewPage = () => {
@@ -230,6 +259,20 @@ const handleCreateScanner = async () => {
           <ActionButton icon={<PlusCircle size={24}/>} label="Deposit" onClick={() => setActiveTab("Deposit")} />
           <ActionButton icon={<Repeat size={24}/>} label="Convert" onClick={() => setActiveTab("Convert")} />
           <ActionButton icon={<ScanLine size={24}/>} label="Pay Scanner" primary onClick={() => setActiveTab("Scanner")} />
+          <ActionButton
+  icon={<Wallet size={24}/>}
+  label="Self Pay"
+  onClick={() => {
+    const amount = prompt("Enter Amount to Pay");
+    if (amount) {
+      selfPay(amount).then((res) => {
+        alert(res.message);
+        loadAllData();
+      });
+    }
+  }}
+/>
+
         </div>
 
         <div className="lg:col-span-2 bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-6 md:p-8">
@@ -252,7 +295,7 @@ const handleCreateScanner = async () => {
 useEffect(() => {
   const loadRate = async () => {
     const r = await getCurrentRate();
-    if (r?.usdtToInr) setRate(r.usdtToInr);
+    if (r?.rate) setRate(r.rate); setRate(r.usdtToInr);
   };
   loadRate();
 }, []);
@@ -360,40 +403,69 @@ useEffect(() => {
   <div className="max-w-5xl mx-auto space-y-10">
 
     {/* CREATE SCANNER */}
-    <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2.5rem]">
-      <h2 className="text-2xl font-black text-[#00F5A0] mb-6 italic">
-        Create Scanner
-      </h2>
+<div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2.5rem]">
+  <h2 className="text-2xl font-black text-[#00F5A0] mb-6 italic">
+    Create Scanner
+  </h2>
 
+  <input
+    type="number"
+    placeholder="Enter Amount"
+    value={uploadAmount}
+    onChange={(e) => setUploadAmount(e.target.value)}
+    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
+  />
+
+  <div className="space-y-4">
+
+    <label className="w-full block bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold cursor-pointer text-center">
+      📷 Capture Photo
       <input
-        type="number"
-        placeholder="Enter Amount"
-        value={uploadAmount}
-        onChange={(e) => setUploadAmount(e.target.value)}
-        className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-4"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(e) => setSelectedImage(e.target.files[0])}
+        className="hidden"
       />
+    </label>
 
+    <label className="w-full block bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold cursor-pointer text-center">
+      ⬆ Upload from Gallery
       <input
         type="file"
         accept="image/*"
         onChange={(e) => setSelectedImage(e.target.files[0])}
-        className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
+        className="hidden"
       />
+    </label>
 
-      <button
-        onClick={handleCreateScanner}
-        disabled={actionLoading}
-        className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic"
-      >
-        {actionLoading ? "UPLOADING..." : "CREATE SCANNER"}
-      </button>
+  </div>
+
+  {selectedImage && (
+    <div className="mt-4">
+      <img
+        src={URL.createObjectURL(selectedImage)}
+        alt="Preview"
+        className="w-40 h-40 mx-auto rounded-xl object-cover"
+      />
     </div>
+  )}
+
+  <button
+    onClick={handleCreateScanner}
+    disabled={actionLoading}
+    className="w-full mt-6 bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic"
+  >
+    {actionLoading ? "UPLOADING..." : "CREATE SCANNER"}
+  </button>
+</div>
+
 
     {/* ACTIVE SCANNERS */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {scanners.map((s) => {
 
-        const isOwner = s.user?._id === user._id;
+const isOwner = String(s.user?._id) === String(user._id);
         const isPending = s.status === "PENDING_CONFIRMATION";
         const isPaid = s.status === "PAID";
 
@@ -596,10 +668,78 @@ useEffect(() => {
 )}
 
       </main>
-
+     
       {isSidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[140] md:hidden" onClick={()=>setIsSidebarOpen(false)} />}
+   {showSelfPay && (
+  <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+    <div className="bg-[#0A1F1A] p-6 rounded-3xl w-full max-w-md border border-white/10">
+
+      <h2 className="text-xl font-bold text-[#00F5A0] mb-4">
+        Scan & Pay
+      </h2>
+
+      {!qrData && (
+        <div>
+          <div id="reader" className="w-full rounded-xl overflow-hidden mb-4" />
+          {!scannerActive && (
+            <button
+              onClick={startScanner}
+              className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-bold"
+            >
+              Start Camera
+            </button>
+          )}
+        </div>
+      )}
+
+      {qrData && (
+        <>
+          <div className="bg-black/40 p-3 rounded-xl text-xs break-all mb-4">
+            {qrData}
+          </div>
+
+          <input
+            type="number"
+            placeholder="Enter Amount (INR)"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 mb-4"
+          />
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setShowSelfPay(false);
+                setQrData("");
+              }}
+              className="flex-1 bg-red-500 py-3 rounded-xl font-bold"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={async () => {
+                const res = await selfPay(amount, qrData);
+                alert(res.message);
+                setShowSelfPay(false);
+                setQrData("");
+                setAmount("");
+              }}
+              className="flex-1 bg-[#00F5A0] text-black py-3 rounded-xl font-bold"
+            >
+              Pay Now
+            </button>
+          </div>
+        </>
+      )}
     </div>
+  </div>
+)}
+
+    </div>
+    
   );
+  
 }
 
 /* ================= COMPONENT: HELPERS ================= */
