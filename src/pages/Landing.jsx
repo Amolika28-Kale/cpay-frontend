@@ -196,27 +196,54 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ================= REWARDS SECTION ================= */}
-      <section id="rewards" className="py-24 px-6 text-center">
-        <h2 className="text-5xl md:text-7xl font-bold mb-4 italic">Earn While You Spend</h2>
-        <p className="text-gray-500 mb-16">Maximize your crypto value with our unique cashback program.</p>
+  {/* ================= REWARDS SECTION ================= */}
+<section id="rewards" className="py-24 px-6 text-center">
+  <h2 className="text-5xl md:text-7xl font-bold mb-4 italic">
+    Earn Real Cashback
+  </h2>
+  <p className="text-gray-500 mb-16">
+    Every payment you make earns you real money — instantly credited.
+  </p>
 
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
-          <div className="bg-white/5 border border-[#00F5A0]/20 p-12 rounded-[2.5rem] relative group hover:bg-[#00F5A0]/5 transition-all">
-            <h3 className="text-[#00F5A0] text-7xl font-bold mb-4 tracking-tighter">5%</h3>
-            <h4 className="text-2xl font-bold mb-4">Transaction Cashback</h4>
-            <p className="text-gray-500 mb-8">Receive 5% back on every single scanner payment you make. Credited instantly to your CPay wallet.</p>
-            <button className="bg-[#00F5A0]/10 text-[#00F5A0] border border-[#00F5A0]/30 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">Standard Reward</button>
-          </div>
+  <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-8">
+    
+    {/* Normal Payments */}
+    <div className="bg-white/5 border border-[#00F5A0]/20 p-12 rounded-[2.5rem] relative group hover:bg-[#00F5A0]/5 transition-all">
+      <h3 className="text-[#00F5A0] text-6xl font-bold mb-4 tracking-tighter">
+        5–10%
+      </h3>
+      <h4 className="text-2xl font-bold mb-4">
+        Every Payment Cashback
+      </h4>
+      <p className="text-gray-400 mb-8">
+        Get between 5% to 10% cashback on every scanner payment.
+        The reward is credited instantly to your INR wallet
+        as real withdrawable money.
+      </p>
+      <button className="bg-[#00F5A0]/10 text-[#00F5A0] border border-[#00F5A0]/30 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">
+        Instant Credit
+      </button>
+    </div>
 
-          <div className="bg-white/5 border border-white/10 p-12 rounded-[2.5rem] hover:bg-white/10 transition-all">
-            <h3 className="text-white text-7xl font-bold mb-4 tracking-tighter">1%</h3>
-            <h4 className="text-2xl font-bold mb-4">Referral Cashback</h4>
-            <p className="text-gray-500 mb-8">Invite your friends and earn 1% on every transaction they make—forever. Build your passive income stream.</p>
-            <button className="bg-white/5 text-gray-400 border border-white/10 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">Referral Bonus</button>
-          </div>
-        </div>
-      </section>
+    {/* Self Pay */}
+    <div className="bg-white/5 border border-white/10 p-12 rounded-[2.5rem] hover:bg-white/10 transition-all">
+      <h3 className="text-white text-6xl font-bold mb-4 tracking-tighter">
+        1%
+      </h3>
+      <h4 className="text-2xl font-bold mb-4">
+        Self Payment Reward
+      </h4>
+      <p className="text-gray-400 mb-8">
+        Even when you pay yourself or move funds within the system,
+        you still earn 1% cashback credited to your wallet.
+      </p>
+      <button className="bg-white/5 text-gray-400 border border-white/10 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em]">
+        Smart Reward
+      </button>
+    </div>
+  </div>
+</section>
+
 
       {/* ================= FINAL CTA ================= */}
       <section className="py-24 px-6 flex justify-center">

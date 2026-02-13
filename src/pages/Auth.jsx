@@ -45,22 +45,17 @@ export default function Auth() {
     try {
       let response;
 
-      if (isLogin) {
-        // First try admin login
-        response = await adminLogin(formData.email, formData.password);
+if (isLogin) {
+  response = await userLogin(formData.email, formData.password);
+} else {
+  response = await userRegister({
+    name: formData.name,
+    email: formData.email,
+    password: formData.password,
+    referralCode: formData.referralCode || undefined
+  });
+}
 
-        // If not admin, try user login
-        if (!response.ok) {
-          response = await userLogin(formData.email, formData.password);
-        }
-      } else {
-        response = await userRegister({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          referralCode: formData.referralCode || undefined
-        });
-      }
 
       if (response.ok) {
         localStorage.setItem("token", response.data.token);
