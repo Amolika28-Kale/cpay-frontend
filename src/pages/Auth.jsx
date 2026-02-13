@@ -14,9 +14,8 @@ import {
 } from "lucide-react";
 
 import {
-  userLogin,
-  userRegister,
-  adminLogin
+  login,
+  register,
 } from "../services/authService";
 
 export default function Auth() {
@@ -37,45 +36,45 @@ export default function Auth() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      let response;
+  try {
+    let response;
 
-if (isLogin) {
-  response = await userLogin(formData.email, formData.password);
-} else {
-  response = await userRegister({
-    name: formData.name,
-    email: formData.email,
-    password: formData.password,
-    referralCode: formData.referralCode || undefined
-  });
-}
-
-
-      if (response.ok) {
-        localStorage.setItem("token", response.data.token);
-        localStorage.setItem("user", JSON.stringify(response.data.user));
-
-        if (response.data.user.role === "admin") {
-          navigate("/admin-dashboard");
-        } else {
-          navigate("/dashboard");
-        }
-      } else {
-        setError(response.data.message || "Authentication failed");
-      }
-
-    } catch (err) {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
+    if (isLogin) {
+      response = await login(formData.email, formData.password);
+    } else {
+      response = await register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        referralCode: formData.referralCode || undefined
+      });
     }
-  };
+
+    if (response.ok) {
+      localStorage.setItem("token", response.data.token);
+      localStorage.setItem("user", JSON.stringify(response.data.user));
+
+      if (response.data.user.role === "admin") {
+        navigate("/admin-dashboard");
+      } else {
+        navigate("/dashboard");
+      }
+    } else {
+      setError(response.data.message || "Authentication failed");
+    }
+
+  } catch (err) {
+    setError("Network error. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen bg-[#051510] text-white flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">

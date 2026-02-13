@@ -16,7 +16,9 @@ import {
   payScanner,
   transferCashback,
   convertUsdtToInr,
-  getActivePaymentMethods
+  getActivePaymentMethods,
+  confirmScannerPayment,
+  getCurrentRate 
 } from "../services/apiService";
 
 
@@ -40,6 +42,12 @@ export default function UserDashboard() {
   const [paymentMethods, setPaymentMethods] = useState([]);
 const [selectedMethod, setSelectedMethod] = useState(null);
 const [txHash, setTxHash] = useState("");
+const [selectedImage, setSelectedImage] = useState(null);
+const [selectedScanner, setSelectedScanner] = useState(null);
+const [paymentMode, setPaymentMode] = useState("INR");
+const [paymentScreenshot, setPaymentScreenshot] = useState(null);
+
+const [depositScreenshot, setDepositScreenshot] = useState(null);
 
   const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
 
@@ -84,11 +92,15 @@ const handleDepositSubmit = async () => {
 
   setActionLoading(true);
 
-  const res = await createDeposit(
-    depositData.amount,
-    txHash,
-    selectedMethod._id
-  );
+if (!depositScreenshot) return alert("Upload payment screenshot");
+
+const res = await createDeposit(
+  depositData.amount,
+  txHash,
+  selectedMethod._id,
+  depositScreenshot
+);
+
 
   if (res?._id) {
     alert("Deposit submitted successfully!");
@@ -126,16 +138,79 @@ const handleDepositSubmit = async () => {
     loadAllData();
     setActionLoading(false);
   };
+const getTimeLeft = (expiry) => {
+  const diff = new Date(expiry) - new Date();
+  if (diff <= 0) return "Expired";
 
-  const handleScannerPayment = async (id) => {
-    setActionLoading(true);
-    const res = await payScanner(id);
-    if (res) {
-      alert("Payment Success! 5% Cashback added.");
-      loadAllData();
-    }
+  const mins = Math.floor(diff / 60000);
+  const secs = Math.floor((diff % 60000) / 1000);
+
+  return `${mins}m ${secs}s`;
+};
+
+const handlePayClick = (scannerId, mode) => {
+  setSelectedScanner(scannerId);
+  setPaymentMode(mode);
+};
+
+const handleConfirmPayment = async () => {
+  if (!paymentScreenshot)
+    return alert("Upload payment screenshot");
+
+  setActionLoading(true);
+
+  // Step 1: Pay
+  const payRes = await payScanner(selectedScanner, paymentMode);
+
+if (!payRes.success && payRes.message) {
+      alert(payRes?.message || "Payment failed");
     setActionLoading(false);
-  };
+    return;
+  }
+
+  // Step 2: Confirm with screenshot
+  const confirmRes = await confirmScannerPayment(
+    selectedScanner,
+    paymentScreenshot
+  );
+
+  if (confirmRes?.cashbackEarned !== undefined) {
+    alert(
+      `Payment Successful 🎉\nCashback Earned: ₹${confirmRes.cashbackEarned}`
+    );
+  } else {
+    alert(confirmRes?.message || "Something went wrong");
+  }
+
+  setSelectedScanner(null);
+  setPaymentScreenshot(null);
+  loadAllData();
+  setActionLoading(false);
+};
+
+const handleCreateScanner = async () => {
+  if (!uploadAmount || uploadAmount <= 0)
+    return alert("Enter valid amount");
+
+  if (!selectedImage)
+    return alert("Select QR image");
+
+  setActionLoading(true);
+
+  const res = await createScanner(uploadAmount, selectedImage);
+
+  if (res?._id) {
+    alert("Scanner created successfully!");
+    setUploadAmount("");
+    setSelectedImage(null);
+    loadAllData();
+  } else {
+    alert(res?.message || "Error creating scanner");
+  }
+
+  setActionLoading(false);
+};
+
 
   // --- Sub-Pages ---
   const OverviewPage = () => {
@@ -185,7 +260,9 @@ useEffect(() => {
     return (
         <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-10 text-center animate-in zoom-in duration-300">
             <h2 className="text-3xl font-black italic mb-2 text-[#00F5A0]">Swap USDT</h2>
-            <p className="text-gray-500 mb-10 font-bold uppercase text-[10px] tracking-widest">Rate: 1 USDT = ₹90</p>
+<p className="text-gray-500 mb-10 font-bold uppercase text-[10px] tracking-widest">
+  Rate: 1 USDT = ₹{rate}
+</p>
             <div className="bg-black/20 p-8 rounded-3xl border border-white/5 space-y-4 mb-8 text-left">
                 <p className="text-[10px] font-black text-gray-500 uppercase">Available: {usdt.toFixed(2)} USDT</p>
                 <div className="flex justify-between items-center">
@@ -279,20 +356,151 @@ useEffect(() => {
         {activeTab === "Overview" && <OverviewPage />}
         {activeTab === "Convert" && <ConvertPage />}
         {activeTab === "History" && <HistoryPage />}
-        {activeTab === "Scanner" && (
-          <div className="max-w-5xl mx-auto space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {scanners.map(s => (
-                <div key={s._id} className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2.5rem] hover:border-[#00F5A0]/30 transition-all">
-                   <p className="text-[10px] font-black text-gray-500 uppercase mb-4 italic tracking-widest">Merchant QR ID: #{s._id.slice(-4)}</p>
-                   <h3 className="text-4xl font-black text-white italic mb-6">₹{s.amount.toLocaleString()}</h3>
-                   <button onClick={() => handleScannerPayment(s._id)} disabled={actionLoading} className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic shadow-lg active:scale-95 transition-all">CONFIRM & PAY</button>
-                </div>
-              ))}
-              {scanners.length === 0 && <div className="col-span-full h-40 flex items-center justify-center text-gray-700 italic font-black uppercase text-xs border-2 border-dashed border-white/5 rounded-3xl">No scanners in queue</div>}
-            </div>
+{activeTab === "Scanner" && (
+  <div className="max-w-5xl mx-auto space-y-10">
+
+    {/* CREATE SCANNER */}
+    <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2.5rem]">
+      <h2 className="text-2xl font-black text-[#00F5A0] mb-6 italic">
+        Create Scanner
+      </h2>
+
+      <input
+        type="number"
+        placeholder="Enter Amount"
+        value={uploadAmount}
+        onChange={(e) => setUploadAmount(e.target.value)}
+        className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-4"
+      />
+
+      <input
+        type="file"
+        accept="image/*"
+        onChange={(e) => setSelectedImage(e.target.files[0])}
+        className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
+      />
+
+      <button
+        onClick={handleCreateScanner}
+        disabled={actionLoading}
+        className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic"
+      >
+        {actionLoading ? "UPLOADING..." : "CREATE SCANNER"}
+      </button>
+    </div>
+
+    {/* ACTIVE SCANNERS */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {scanners.map((s) => {
+
+        const isOwner = s.user?._id === user._id;
+        const isPending = s.status === "PENDING_CONFIRMATION";
+        const isPaid = s.status === "PAID";
+
+        return (
+          <div
+            key={s._id}
+            className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2.5rem] relative"
+          >
+
+            {isPaid && (
+              <div className="absolute top-4 right-4 text-green-400 text-xs font-black">
+                PAID
+              </div>
+            )}
+
+            <img
+              src={`https://cpay-backend.onrender.com${s.image}`}
+              alt="QR"
+              className="w-40 h-40 mx-auto mb-4 rounded-xl"
+            />
+
+            <h3 className="text-3xl font-black text-center mb-2">
+              ₹{s.amount}
+            </h3>
+
+            <p className="text-center text-xs text-gray-400 mb-4">
+              Expires in: {getTimeLeft(s.expiresAt)}
+            </p>
+
+            {isOwner && (
+              <div className="text-center text-gray-500 text-sm">
+                Your Scanner
+              </div>
+            )}
+
+            {!isOwner && !isPending && !isPaid && (
+              <>
+                <button
+                  onClick={() => handlePayClick(s._id, "INR")}
+                  className="w-full bg-[#00F5A0] text-[#051510] py-3 rounded-xl font-black mb-2"
+                >
+                  Pay Using INR
+                </button>
+
+                <button
+                  onClick={() => handlePayClick(s._id, "CASHBACK")}
+                  className="w-full bg-white/10 text-white py-3 rounded-xl font-black"
+                >
+                  Pay Using Cashback
+                </button>
+              </>
+            )}
+
+            {isPending && s.paidBy === user._id && (
+              <div className="text-yellow-400 text-sm text-center font-bold">
+                Waiting for confirmation...
+              </div>
+            )}
           </div>
-        )}
+        );
+      })}
+
+      {scanners.length === 0 && (
+        <div className="col-span-full text-center text-gray-500">
+          No scanners in queue
+        </div>
+      )}
+    </div>
+
+    {/* PAYMENT MODAL */}
+    {selectedScanner && (
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[200]">
+        <div className="bg-[#0A1F1A] p-8 rounded-3xl w-[400px] border border-white/10 space-y-6">
+
+          <h3 className="text-xl font-black text-[#00F5A0] italic">
+            Confirm Payment
+          </h3>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setPaymentScreenshot(e.target.files[0])}
+            className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white"
+          />
+
+          <button
+            onClick={handleConfirmPayment}
+            disabled={actionLoading}
+            className="w-full bg-[#00F5A0] text-[#051510] py-3 rounded-xl font-black"
+          >
+            {actionLoading ? "PROCESSING..." : "CONFIRM PAYMENT"}
+          </button>
+
+          <button
+            onClick={() => setSelectedScanner(null)}
+            className="w-full bg-white/10 text-white py-3 rounded-xl font-black"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+)}
+
+
+
    {activeTab === "Deposit" && (
   <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-10">
     <h2 className="text-2xl font-black italic text-[#00F5A0] mb-8 uppercase">
@@ -370,6 +578,12 @@ useEffect(() => {
       placeholder="Enter Transaction Hash / UTR"
       className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
     />
+<input
+  type="file"
+  accept="image/*"
+  onChange={(e) => setDepositScreenshot(e.target.files[0])}
+  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
+/>
 
     <button
       onClick={handleDepositSubmit}

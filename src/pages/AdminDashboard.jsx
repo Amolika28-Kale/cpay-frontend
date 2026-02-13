@@ -194,6 +194,14 @@ setWithdraws(Array.isArray(wData) ? wData : []);
                         <button onClick={() => handleAction(activeTab === "Deposits" ? 'DEPOSIT' : 'WITHDRAW', item._id, 'rejected')} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-black italic text-xs uppercase shadow-lg shadow-red-500/10">Reject</button>
                     </div>
                 )}
+                {item.paymentScreenshot && (
+  <img
+    src={`https://cpay-backend.onrender.com${item.paymentScreenshot}`}
+    alt="Screenshot"
+    className="w-full h-40 object-cover rounded-xl mb-4 border border-white/10"
+  />
+)}
+
               </div>
             ))}
           </div>

@@ -32,14 +32,25 @@ export const getActivePaymentMethods = async () => {
 
 /* ================= DEPOSIT ================= */
 
-export const createDeposit = async (amount, txHash, paymentMethodId) => {
+export const createDeposit = async (amount, txHash, paymentMethodId, screenshotFile) => {
+  const formData = new FormData();
+  formData.append("amount", amount);
+  formData.append("txHash", txHash);
+  formData.append("paymentMethodId", paymentMethodId);
+  formData.append("paymentScreenshot", screenshotFile);
+
   const res = await fetch(`${API_BASE}/deposit`, {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ amount, txHash, paymentMethodId }),
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`
+      // ⚠️ DO NOT SET Content-Type when using FormData
+    },
+    body: formData,
   });
+
   return res.json();
 };
+
 
 
 /* ================= WITHDRAW ================= */
@@ -76,14 +87,22 @@ export const getTransactions = async () => {
 
 /* ================= SCANNER ================= */
 
-export const createScanner = async (amount) => {
+export const createScanner = async (amount, imageFile) => {
+  const formData = new FormData();
+  formData.append("amount", amount);
+  formData.append("image", imageFile);
+
   const res = await fetch(`${API_BASE}/scanner/create`, {
     method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ amount }),
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+    body: formData,
   });
+
   return res.json();
 };
+
 
 export const getActiveScanners = async () => {
   const res = await fetch(`${API_BASE}/scanner/active`, {
@@ -92,14 +111,31 @@ export const getActiveScanners = async () => {
   return res.json();
 };
 
-export const payScanner = async (scannerId) => {
+export const payScanner = async (scannerId, paymentMode = "INR") => {
   const res = await fetch(`${API_BASE}/scanner/pay`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ scannerId }),
+    body: JSON.stringify({ scannerId, paymentMode }),
   });
   return res.json();
 };
+
+export const confirmScannerPayment = async (scannerId, screenshotFile) => {
+  const formData = new FormData();
+  formData.append("scannerId", scannerId);
+  formData.append("screenshot", screenshotFile);
+
+  const res = await fetch(`${API_BASE}/scanner/confirm`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    },
+    body: formData,
+  });
+
+  return res.json();
+};
+
 
 export const getCurrentRate = async () => {
   const res = await fetch(`${API_BASE}/wallet/rate`, {
