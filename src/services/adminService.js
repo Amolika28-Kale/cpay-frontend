@@ -30,9 +30,9 @@ export const updateWithdrawStatus = async (id, action) => {
 
 export const updateExchangeRate = async (rate) => {
   const res = await fetch(`${API}/admin/rate`, {
-    method: "POST", // Adjust to POST/PUT based on your adminAuth controller
+    method: "POST",
     headers: headers(),
-    body: JSON.stringify({ rate })
+    body: JSON.stringify({ usdtToInr: rate }) // FIXED
   });
   return res.json();
 };

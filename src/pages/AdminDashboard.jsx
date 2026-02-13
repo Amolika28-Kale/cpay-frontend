@@ -27,8 +27,9 @@ export default function AdminDashboard() {
         getAllWithdraws()
       ]);
       setUsers(uData || []);
-      setDeposits(dData || []);
-      setWithdraws(wData || []);
+setDeposits(Array.isArray(dData) ? dData : []);
+setWithdraws(Array.isArray(wData) ? wData : []);
+
     } catch (err) {
       console.error("Data Fetch Error:", err);
     } finally {
@@ -104,7 +105,10 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <StatBox label="Total Members" val={users.length} sub="Active accounts" />
               <StatBox label="Verify Queue" val={deposits.filter(d=>d.status==='pending').length} sub="Pending Deposits" highlight />
-              <StatBox label="Platform USDT" val={users.reduce((a,b)=>a+(b.wallets?.usdt || 0), 0).toFixed(2)} sub="Internal Liquidity" />
+              <StatBox label="Platform USDT" val={users.reduce((a, b) => {
+  const usdt = b.wallets?.find(w => w.type === "USDT")?.balance || 0;
+  return a + usdt;
+}, 0).toFixed(2)} sub="Internal Liquidity" />
               <StatBox label="Withdraw Queue" val={withdraws.filter(w=>w.status==='pending').length} sub="Action Required" />
             </div>
 

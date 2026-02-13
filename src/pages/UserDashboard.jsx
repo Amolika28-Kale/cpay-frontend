@@ -15,8 +15,10 @@ import {
   getActiveScanners,
   payScanner,
   transferCashback,
-  convertUsdtToInr
+  convertUsdtToInr,
+  getActivePaymentMethods
 } from "../services/apiService";
+
 
 export default function UserDashboard() {
   const navigate = useNavigate();
@@ -35,19 +37,27 @@ export default function UserDashboard() {
   const [convertAmount, setConvertAmount] = useState("");
   const [uploadAmount, setUploadAmount] = useState("");
 
+  const [paymentMethods, setPaymentMethods] = useState([]);
+const [selectedMethod, setSelectedMethod] = useState(null);
+const [txHash, setTxHash] = useState("");
+
   const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
 
   // --- Sync Logic ---
   const loadAllData = async () => {
     try {
-      const [w, t, s] = await Promise.all([
-        getWallets(),
-        getTransactions(),
-        getActiveScanners()
-      ]);
-      setWallets(w);
-      setTransactions(t);
-      setScanners(s);
+const [w, t, s, pm] = await Promise.all([
+  getWallets(),
+  getTransactions(),
+  getActiveScanners(),
+  getActivePaymentMethods()
+]);
+
+setWallets(w);
+setTransactions(t);
+setScanners(s);
+setPaymentMethods(pm);
+
     } catch (err) {
       console.error("Sync Error:", err);
     } finally {
@@ -67,16 +77,32 @@ export default function UserDashboard() {
   };
 
   // --- Handlers ---
-  const handleDepositSubmit = async () => {
-    if (!depositData.amount) return alert("Enter amount");
-    setActionLoading(true);
-    const res = await createDeposit(depositData.amount, depositData.network);
-    if (res) {
-      alert("Deposit request submitted! Wait for Admin approval.");
-      setActiveTab("Overview");
-    }
-    setActionLoading(false);
-  };
+const handleDepositSubmit = async () => {
+  if (!depositData.amount) return alert("Enter amount");
+  if (!selectedMethod) return alert("Select payment method");
+  if (!txHash) return alert("Enter transaction hash");
+
+  setActionLoading(true);
+
+  const res = await createDeposit(
+    depositData.amount,
+    txHash,
+    selectedMethod._id
+  );
+
+  if (res?._id) {
+    alert("Deposit submitted successfully!");
+    setDepositData({ amount: "" });
+    setTxHash("");
+    setSelectedMethod(null);
+    setActiveTab("Overview");
+  } else {
+    alert(res.message || "Error occurred");
+  }
+
+  setActionLoading(false);
+};
+
 
   const handleConversion = async () => {
     if (!convertAmount || convertAmount <= 0) return alert("Enter valid amount");
@@ -146,6 +172,16 @@ export default function UserDashboard() {
 
   const ConvertPage = () => {
     const usdt = wallets.find(w => w.type === 'USDT')?.balance || 0;
+    const [rate, setRate] = useState(90);
+
+useEffect(() => {
+  const loadRate = async () => {
+    const r = await getCurrentRate();
+    if (r?.usdtToInr) setRate(r.usdtToInr);
+  };
+  loadRate();
+}, []);
+
     return (
         <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-10 text-center animate-in zoom-in duration-300">
             <h2 className="text-3xl font-black italic mb-2 text-[#00F5A0]">Swap USDT</h2>
@@ -158,7 +194,7 @@ export default function UserDashboard() {
                 </div>
                 <div className="h-px bg-white/5"></div>
                 <div className="flex justify-between items-center">
-                    <p className="text-2xl font-black text-[#00F5A0]">₹{(convertAmount * 90).toLocaleString()}</p>
+                    <p className="text-2xl font-black text-[#00F5A0]">₹{(convertAmount * rate).toLocaleString()}</p>
                     <span className="font-bold text-gray-600">INR</span>
                 </div>
             </div>
@@ -257,22 +293,94 @@ export default function UserDashboard() {
             </div>
           </div>
         )}
-        
-        {activeTab === "Deposit" && (
-           <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-10">
-              <h2 className="text-2xl font-black italic text-[#00F5A0] mb-8 uppercase">Deposit USDT</h2>
-              <div className="space-y-6">
-                 <input type="number" value={depositData.amount} onChange={(e)=>setDepositData({...depositData, amount: e.target.value})} placeholder="Amount USDT" className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none focus:border-[#00F5A0]" />
-                 <div className="flex gap-4">
-                    {["TRC20", "BEP20"].map(n => (
-                        <button key={n} onClick={()=>setDepositData({...depositData, network: n})} className={`flex-1 py-3 rounded-xl font-black text-xs ${depositData.network === n ? 'bg-[#00F5A0] text-[#051510]' : 'bg-white/5 text-gray-500'}`}>{n}</button>
-                    ))}
-                 </div>
-                 <div className="p-4 bg-[#00F5A0]/5 border border-[#00F5A0]/20 rounded-xl"><p className="text-[9px] font-black text-gray-500 uppercase mb-1">Admin Address</p><p className="font-mono text-xs text-[#00F5A0] break-all">0x82f7689123654abc1b2c3d4e5f6g7h8i9j0</p></div>
-                 <button onClick={handleDepositSubmit} disabled={actionLoading} className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic shadow-lg">SUBMIT VERIFICATION</button>
-              </div>
-           </div>
+   {activeTab === "Deposit" && (
+  <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-10">
+    <h2 className="text-2xl font-black italic text-[#00F5A0] mb-8 uppercase">
+      Deposit Funds
+    </h2>
+
+    {/* Select Payment Method */}
+    <div className="space-y-4 mb-6">
+      <p className="text-xs font-bold text-gray-500 uppercase">
+        Select Payment Method
+      </p>
+
+      {paymentMethods.map((method) => (
+        <button
+          key={method._id}
+          onClick={() => setSelectedMethod(method)}
+          className={`w-full p-4 rounded-xl border text-left ${
+            selectedMethod?._id === method._id
+              ? "border-[#00F5A0] bg-[#00F5A0]/10"
+              : "border-white/10 bg-black/20"
+          }`}
+        >
+          <p className="font-bold">{method.method}</p>
+        </button>
+      ))}
+    </div>
+
+    {/* Show Dynamic Details */}
+    {selectedMethod && (
+      <div className="p-4 bg-[#00F5A0]/5 border border-[#00F5A0]/20 rounded-xl mb-6 text-xs">
+        <p className="font-black text-gray-400 mb-2 uppercase">
+          Payment Details
+        </p>
+
+        {selectedMethod.method === "UPI" && (
+          <>
+            <p>UPI ID: {selectedMethod.details.upiId}</p>
+            <p>Name: {selectedMethod.details.name}</p>
+          </>
         )}
+
+        {selectedMethod.method === "BANK" && (
+          <>
+            <p>Account: {selectedMethod.details.accountNumber}</p>
+            <p>IFSC: {selectedMethod.details.ifsc}</p>
+            <p>Bank: {selectedMethod.details.bankName}</p>
+          </>
+        )}
+
+        {selectedMethod.method.includes("USDT") && (
+          <>
+            <p>Address: {selectedMethod.details.address}</p>
+            <p>Network: {selectedMethod.details.network}</p>
+          </>
+        )}
+      </div>
+    )}
+
+    {/* Amount */}
+    <input
+      type="number"
+      value={depositData.amount}
+      onChange={(e) =>
+        setDepositData({ ...depositData, amount: e.target.value })
+      }
+      placeholder="Enter Amount"
+      className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-4"
+    />
+
+    {/* Transaction Hash */}
+    <input
+      type="text"
+      value={txHash}
+      onChange={(e) => setTxHash(e.target.value)}
+      placeholder="Enter Transaction Hash / UTR"
+      className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 text-white font-bold outline-none mb-6"
+    />
+
+    <button
+      onClick={handleDepositSubmit}
+      disabled={actionLoading}
+      className="w-full bg-[#00F5A0] text-[#051510] py-4 rounded-2xl font-black italic shadow-lg"
+    >
+      {actionLoading ? "PROCESSING..." : "SUBMIT DEPOSIT"}
+    </button>
+  </div>
+)}
+
       </main>
 
       {isSidebarOpen && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[140] md:hidden" onClick={()=>setIsSidebarOpen(false)} />}

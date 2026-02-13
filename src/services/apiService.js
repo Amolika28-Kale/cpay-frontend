@@ -20,14 +20,27 @@ export const transferCashback = async (amount) => {
 
 /* ================= DEPOSIT ================= */
 
-export const createDeposit = async (amount, network) => {
-  const res = await fetch(`${API_BASE}/deposit`, {
-    method: "POST",
+/* ================= PAYMENT METHODS ================= */
+
+export const getActivePaymentMethods = async () => {
+  const res = await fetch(`${API_BASE}/payment-methods`, {
     headers: getAuthHeaders(),
-    body: JSON.stringify({ amount, network }),
   });
   return res.json();
 };
+
+
+/* ================= DEPOSIT ================= */
+
+export const createDeposit = async (amount, txHash, paymentMethodId) => {
+  const res = await fetch(`${API_BASE}/deposit`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ amount, txHash, paymentMethodId }),
+  });
+  return res.json();
+};
+
 
 /* ================= WITHDRAW ================= */
 
