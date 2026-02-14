@@ -28,11 +28,16 @@ export const updateWithdrawStatus = async (id, action) => {
   return res.json();
 };
 
+// Add this to your adminService.js
+export const getAllScanners = async () => (await fetch(`${API}/scanner/all`, { headers: headers() })).json();
+// Add this to your adminService.js
+export const getAllTransactions = async () => (await fetch(`${API}/transactions/all`, { headers: headers() })).json();
+// Fix the exchange rate endpoint to match your backend router.post('/set-rate')
 export const updateExchangeRate = async (rate) => {
-  const res = await fetch(`${API}/admin/rate`, {
+  const res = await fetch(`${API}/admin/set-rate`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ usdtToInr: rate }) // FIXED
+    body: JSON.stringify({ usdtToInr: rate }) 
   });
   return res.json();
 };

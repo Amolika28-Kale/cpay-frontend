@@ -87,15 +87,19 @@ export const getTransactions = async () => {
 
 /* ================= SCANNER ================= */
 
-export const createScanner = async (amount, imageFile) => {
+/* ================= SCANNER ================= */
+
+/* 1️⃣ REQUEST TO PAY (User A) */
+export const requestToPay = async (amount, imageFile, upiLink = "") => {
   const formData = new FormData();
   formData.append("amount", amount);
   formData.append("image", imageFile);
+  formData.append("upiLink", upiLink);
 
-  const res = await fetch(`${API_BASE}/scanner/create`, {
+  const res = await fetch(`${API_BASE}/scanner/request`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
+      Authorization: `Bearer ${localStorage.getItem("token")}`
     },
     body: formData,
   });
@@ -104,28 +108,33 @@ export const createScanner = async (amount, imageFile) => {
 };
 
 
-export const getActiveScanners = async () => {
+/* 2️⃣ GET ACTIVE REQUESTS */
+export const getActiveRequests = async () => {
   const res = await fetch(`${API_BASE}/scanner/active`, {
     headers: getAuthHeaders(),
   });
   return res.json();
 };
 
-export const payScanner = async (scannerId, paymentMode = "INR") => {
-  const res = await fetch(`${API_BASE}/scanner/pay`, {
+
+/* 3️⃣ ACCEPT REQUEST (User B) */
+export const acceptRequest = async (scannerId) => {
+  const res = await fetch(`${API_BASE}/scanner/accept`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ scannerId, paymentMode }),
+    body: JSON.stringify({ scannerId }),
   });
   return res.json();
 };
 
-export const confirmScannerPayment = async (scannerId, screenshotFile) => {
+
+/* 4️⃣ SUBMIT PAYMENT SCREENSHOT (User B) */
+export const submitPayment = async (scannerId, screenshotFile) => {
   const formData = new FormData();
   formData.append("scannerId", scannerId);
   formData.append("screenshot", screenshotFile);
 
-  const res = await fetch(`${API_BASE}/scanner/confirm`, {
+  const res = await fetch(`${API_BASE}/scanner/submit-payment`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -133,6 +142,29 @@ export const confirmScannerPayment = async (scannerId, screenshotFile) => {
     body: formData,
   });
 
+  return res.json();
+};
+
+
+/* 5️⃣ FINAL CONFIRM (User A clicks Done) */
+export const confirmRequest = async (scannerId) => {
+  const res = await fetch(`${API_BASE}/scanner/confirm`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ scannerId }),
+  });
+
+  return res.json();
+};
+
+
+/* 6️⃣ SELF PAY (1% Cashback) */
+export const selfPay = async (amount) => {
+  const res = await fetch(`${API_BASE}/scanner/self-pay`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ amount }),
+  });
   return res.json();
 };
 
@@ -152,11 +184,3 @@ export const getBalance = async (type) => {
   return data?.balance || 0;  
 };
 
-export const selfPay = async (amount) => {
-  const res = await fetch(`${API_BASE}/wallet/self-pay`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ amount }),
-  });
-  return res.json();
-};

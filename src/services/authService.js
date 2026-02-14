@@ -32,3 +32,26 @@ export const register = async (payload) => {
     data
   }));
 };
+
+// services/authService.js
+export const getReferralStats = async (token) => {
+  try {
+    const res = await fetch(`${API_BASE}/auth/referral`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+    });
+
+    if (res.status === 404) {
+       console.error("Endpoint not found. Check backend route registration.");
+       return { message: "Route not found" };
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("Fetch error:", error);
+    return { message: "Network error" };
+  }
+};
