@@ -161,20 +161,29 @@ const loadAllData = async () => {
       setActionLoading(false);
     }
   };
-  const startScanner = () => {
-    const qrCode = new Html5Qrcode("reader");
-    qrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      (decodedText) => {
-        setQrData(decodedText);
-        qrCode.stop();
-        setScannerActive(false);
-      },
-      () => { }
-    );
-    setScannerActive(true);
-  };
+const startScanner = () => {
+  const qrCode = new Html5Qrcode("reader");
+
+  qrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    (decodedText) => {
+      setQrData(decodedText);
+
+      qrCode.stop();
+      setScannerActive(false);
+
+      // 🔥 AUTO OPEN UPI APP
+      if (decodedText.startsWith("upi://")) {
+        window.location.href = decodedText;
+      }
+    },
+    () => {}
+  );
+
+  setScannerActive(true);
+};
+
 
   const handleConfirmPayment = async () => {
     if (!paymentScreenshot) return alert("Upload screenshot");
@@ -268,114 +277,169 @@ const loadAllData = async () => {
         {activeTab === "Overview" && <OverviewPage wallets={wallets} transactions={transactions} setActiveTab={setActiveTab} />}
 
         {/* WORK STATION: RESPONSIVE CARDS */}
-        {activeTab === "Scanner" && (
-          <div className="max-w-4xl mx-auto space-y-6 md:space-y-10 animate-in fade-in">
-            <div className="bg-[#0A1F1A] border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
-              <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2"><Camera size={20} /> Self Pay</h2>
-              {!qrData ? (
-                <div className="space-y-4">
-                  <div id="reader" className="w-full max-w-xs md:max-w-sm mx-auto rounded-2xl md:rounded-3xl overflow-hidden border border-white/10 bg-black aspect-square" />
-                  <button onClick={startScanner} className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95 transition-transform">START CAMERA</button>
-                </div>
-              ) : (
-                <div className="space-y-4 animate-in zoom-in">
-                  <div className="bg-black/40 p-4 rounded-xl text-xs break-all text-gray-400 border border-white/5">{qrData}</div>
-                  <input type="number" placeholder="Enter Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl px-6 py-4 font-bold outline-none text-lg" />
-                  <div className="flex gap-4">
-                    <button onClick={() => setQrData("")} className="flex-1 bg-white/5 py-4 rounded-2xl font-black">RESET</button>
-                    <button onClick={async () => {
-                      const res = await selfPay(amount);
-                      alert(res.message); setQrData(""); setAmount(""); loadAllData();
-                    }} className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black">PAY NOW</button>
-                  </div>
-                </div>
-              )}
+{activeTab === "Scanner" && (
+  <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in">
+
+    {/* 🔥 TOP ROW - SELF PAY + CREATE REQUEST */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {/* ================= SELF PAY ================= */}
+      <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+        <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
+          <Camera size={20} /> Self Pay
+        </h2>
+
+        {!qrData ? (
+          <div className="space-y-4">
+            <div id="reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
+            <button
+              onClick={startScanner}
+              className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95"
+            >
+              START CAMERA
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="bg-black/40 p-4 rounded-xl text-xs break-all text-gray-400 border border-white/5">
+              {qrData}
             </div>
 
-       {/* Adding a key tied to actionLoading or a reset counter forces a clean UI state */}
-<div key={actionLoading ? 'loading' : 'idle'} className="bg-[#0A1F1A] border border-white/10 p-5 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
-  <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-    <UploadCloud size={20} /> Create Pay Request
-  </h2>
+            <input
+              type="number"
+              placeholder="Enter Amount"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-6 py-4 font-bold outline-none text-lg"
+            />
 
-  {/* 1. Controlled Input: value is tied to uploadAmount */}
-  <input 
-    type="number" 
-    placeholder="Enter Amount" 
-    value={uploadAmount} 
-    onChange={(e) => setUploadAmount(e.target.value)} 
-    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg" 
-  />
+            <div className="flex gap-4">
+              <button
+                onClick={() => setQrData("")}
+                className="flex-1 bg-white/5 py-4 rounded-2xl font-black"
+              >
+                RESET
+              </button>
 
-  <div className="grid grid-cols-2 gap-3 md:gap-4 mb-6">
-    {/* 2. File Inputs: Added 'key' to force reset visually */}
-    <label className="bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm">
-      📷 Capture
-      <input 
-        key={selectedImage ? 'has-image' : 'no-image'}
-        type="file" 
-        accept="image/*" 
-        capture="environment" 
-        onChange={(e) => setSelectedImage(e.target.files[0])} 
-        className="hidden" 
-      />
-    </label>
-    <label className="bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm">
-      📁 Gallery
-      <input 
-        key={selectedImage ? 'has-image-gal' : 'no-image-gal'}
-        type="file" 
-        accept="image/*" 
-        onChange={(e) => setSelectedImage(e.target.files[0])} 
-        className="hidden" 
-      />
-    </label>
-  </div>
-
-  {/* 3. Improved Preview Section */}
-  {selectedImage ? (
-    <div className="mt-4 relative group animate-in zoom-in duration-200">
-      <img 
-        src={URL.createObjectURL(selectedImage)} 
-        className="w-full max-w-[200px] mx-auto rounded-xl border border-[#00F5A0] object-cover aspect-square shadow-lg" 
-        alt="preview" 
-      />
-      <button 
-        type="button"
-        onClick={() => setSelectedImage(null)} 
-        className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-md transition-colors"
-      >
-        <X size={16} />
-      </button>
-    </div>
-  ) : (
-    <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center text-gray-500 mb-4">
-      No QR Image Selected
-    </div>
-  )}
-
-  <button 
-    onClick={handleCreateScanner} 
-    disabled={actionLoading} 
-    className={`w-full py-4 rounded-2xl font-black italic transition-all ${
-      actionLoading ? "bg-gray-700 text-gray-400" : "bg-[#00F5A0] text-black active:scale-95"
-    }`}
-  >
-    {actionLoading ? "UPLOADING..." : "POST TO Pay Requests"}
-  </button>
-</div>
+              <button
+                onClick={async () => {
+                  const res = await selfPay(amount);
+                  alert(res.message);
+                  setQrData("");
+                  setAmount("");
+                  loadAllData();
+                }}
+                className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
+              >
+                PAY NOW
+              </button>
+            </div>
           </div>
         )}
+      </div>
+
+      {/* ================= CREATE PAY REQUEST ================= */}
+      <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+        <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
+          <UploadCloud size={20} /> Create Your Pay Request
+        </h2>
+
+        <input
+          type="number"
+          placeholder="Enter Amount"
+          value={uploadAmount}
+          onChange={(e) => setUploadAmount(e.target.value)}
+          className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg"
+        />
+        <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
+ Capture QR
+  <input key={selectedImage ? 'has-image' : 'no-image'} type="file" accept="image/*" capture="environment" onChange={(e) => setSelectedImage(e.target.files[0])} className="hidden" /> </label>
+        <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
+          Upload QR Image
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setSelectedImage(e.target.files[0])}
+            className="hidden"
+          />
+        </label>
+
+        {selectedImage && (
+          <img
+            src={URL.createObjectURL(selectedImage)}
+            className="w-full max-w-[180px] mx-auto rounded-xl border border-[#00F5A0] object-cover aspect-square mb-4"
+            alt="preview"
+          />
+        )}
+
+        <button
+          onClick={handleCreateScanner}
+          disabled={actionLoading}
+          className={`w-full py-4 rounded-2xl font-black italic ${
+            actionLoading
+              ? "bg-gray-700 text-gray-400"
+              : "bg-[#00F5A0] text-black"
+          }`}
+        >
+          {actionLoading ? "UPLOADING..." : "POST TO Pay Requests"}
+        </button>
+      </div>
+    </div>
+
+    {/* 🔥 MY REQUESTS SECTION (User A chi requests) */}
+    <div>
+      <h2 className="text-lg font-black text-white/70 italic mb-4">
+        My Pay Requests
+      </h2>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {scanners
+          .filter((s) => String(s.user?._id) === String(user._id))
+          .map((s) => (
+            <RequestCard
+              key={s._id}
+              s={s}
+              user={user}
+              loadAllData={loadAllData}
+              setSelectedScanner={setSelectedScanner}
+            />
+          ))}
+
+        {scanners.filter((s) => String(s.user?._id) === String(user._id))
+          .length === 0 && (
+          <div className="col-span-full text-center py-10 text-gray-600 font-black italic">
+            No Requests Created
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Pay Requests: GRID FOR MOBILE */}
-        {activeTab === "PayRequests" && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 animate-in slide-in-from-bottom duration-500">
-            {scanners.map((s) => (
-              <RequestCard key={s._id} s={s} user={user} loadAllData={loadAllData} setSelectedScanner={setSelectedScanner} />
-            ))}
-            {scanners.length === 0 && <div className="col-span-full text-center py-20 text-gray-600 font-black italic uppercase">Pay Requests Empty</div>}
-          </div>
-        )}
+    {activeTab === "PayRequests" && (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
+    {scanners
+      .filter((s) => String(s.user?._id) !== String(user._id))
+      .map((s) => (
+        <RequestCard
+          key={s._id}
+          s={s}
+          user={user}
+          loadAllData={loadAllData}
+          setSelectedScanner={setSelectedScanner}
+        />
+      ))}
+
+    {scanners.filter((s) => String(s.user?._id) !== String(user._id))
+      .length === 0 && (
+      <div className="col-span-full text-center py-20 text-gray-600 font-black italic uppercase">
+        No Pay Requests Available
+      </div>
+    )}
+  </div>
+)}
+
 
         {activeTab === "Deposit" && <DepositPage paymentMethods={paymentMethods} selectedMethod={selectedMethod} setSelectedMethod={setSelectedMethod} depositData={depositData} setDepositData={setDepositData} txHash={txHash} setTxHash={setTxHash} setDepositScreenshot={setDepositScreenshot} handleDepositSubmit={handleDepositSubmit} actionLoading={actionLoading} />}
         {activeTab === "History" && <HistoryPage transactions={transactions} />}
