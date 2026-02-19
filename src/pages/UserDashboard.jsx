@@ -12,7 +12,7 @@ import {
 } from "../services/apiService";
 import { getReferralStats } from "../services/authService";
 import { Copy } from "lucide-react";
-
+import toast from 'react-hot-toast';
 import { Html5Qrcode } from "html5-qrcode";
 
 export default function UserDashboard() {
@@ -63,42 +63,57 @@ export default function UserDashboard() {
     prevActiveCount.current = activeRequestsCount;
   }, [activeRequestsCount]);
 const loadAllData = async () => {
-    try {
-      // 1. Extract the token from localStorage
-      const token = localStorage.getItem("token");
-
-      // 2. Safety check: If token is missing, stop here to avoid 401 errors
-      if (!token) {
-        console.warn("Sync aborted: No token found");
-        return;
-      }
-
-      // 3. Pass the token specifically to getReferralStats
-      const [w, t, s, pm, ref] = await Promise.all([
-        getWallets(),
-        getTransactions(),
-        getActiveRequests(),
-        getActivePaymentMethods(),
-        getReferralStats(token), // Pass the token here!
-      ]);
-
-      // 4. Update states
-      setWallets(w || []);
-      setTransactions(t || []);
-      setScanners(s || []);
-      setPaymentMethods(pm || []);
-      
-      // Ensure state is updated with the referral object
-      if (ref && !ref.message) {
-        setReferralData(ref);
-      }
-
-    } catch (err) {
-      console.error("Sync Error:", err);
-    } finally {
-      setLoading(false);
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.warn("Sync aborted: No token found");
+      return;
     }
-  };
+
+    const [w, t, s, pm, ref] = await Promise.all([
+      getWallets(),
+      getTransactions(),
+      getActiveRequests(),
+      getActivePaymentMethods(),
+      getReferralStats(token),
+    ]);
+
+    // Check for new referral earnings
+    if (ref && !ref.message && ref.referralEarnings > referralData.referralEarnings) {
+      const newEarnings = ref.referralEarnings - referralData.referralEarnings;
+      toast.success(
+        <div className="flex items-center gap-2">
+          <Zap size={20} className="text-[#00F5A0]" />
+          <div>
+            <div className="font-bold">New Referral Earnings! 🎉</div>
+            <div className="text-sm">+₹{newEarnings.toFixed(2)} earned</div>
+          </div>
+        </div>,
+        { 
+          duration: 4000,
+          style: {
+            background: '#00F5A0',
+            color: '#051510',
+          }
+        }
+      );
+    }
+
+    setWallets(w || []);
+    setTransactions(t || []);
+    setScanners(s || []);
+    setPaymentMethods(pm || []);
+    
+    if (ref && !ref.message) {
+      setReferralData(ref);
+    }
+
+  } catch (err) {
+    console.error("Sync Error:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
 useEffect(() => {
   loadAllData();
@@ -119,57 +134,111 @@ useEffect(() => {
     navigate("/auth");
   };
 
-  // --- Handlers ---
-  const handleDepositSubmit = async () => {
-    if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
-      return alert("Fill all fields and upload screenshot");
-    }
-    setActionLoading(true);
-    const res = await createDeposit(depositData.amount, txHash, selectedMethod._id, depositScreenshot);
+const handleDepositSubmit = async () => {
+  if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
+    toast.error("Please fill all fields and upload screenshot");
+    return;
+  }
+  
+  setActionLoading(true);
+  const toastId = toast.loading('Submitting deposit...');
+  
+  const res = await createDeposit(depositData.amount, txHash, selectedMethod._id, depositScreenshot);
+  if (res?._id) {
+    toast.dismiss(toastId);
+    toast.success(
+      <div>
+        <div className="font-bold">Deposit Submitted! 📥</div>
+        <div className="text-sm text-[#00F5A0] mt-1">
+          Amount: ₹{depositData.amount}
+        </div>
+      </div>,
+      { duration: 4000 }
+    );
+    
+    setDepositData({ amount: "" }); 
+    setTxHash(""); 
+    setSelectedMethod(null);
+    setActiveTab("Overview");
+    loadAllData();
+  } else {
+    toast.dismiss(toastId);
+    toast.error("Deposit submission failed");
+  }
+  setActionLoading(false);
+};
+
+const handleCreateScanner = async () => {
+  if (!uploadAmount || !selectedImage) {
+    toast.error("Please enter amount and select QR image");
+    return;
+  }
+
+  setActionLoading(true);
+  const toastId = toast.loading('Creating pay request...');
+
+  try {
+    const res = await requestToPay(uploadAmount, selectedImage);
+
     if (res?._id) {
-      alert("Deposit submitted!");
-      setDepositData({ amount: "" }); setTxHash(""); setSelectedMethod(null);
-      setActiveTab("Overview");
+      toast.dismiss(toastId);
+      toast.success(
+        <div>
+          <div className="font-bold">Pay Request Created! 🎉</div>
+          <div className="text-sm text-[#00F5A0] mt-1">
+            Amount: ₹{uploadAmount}
+          </div>
+        </div>,
+        { duration: 4000 }
+      );
+      
+      setUploadAmount(""); 
+      setSelectedImage(null);
+      
+      const fileInputs = document.querySelectorAll('input[type="file"]');
+      fileInputs.forEach(input => { input.value = ""; });
+
+      setActiveTab("PayRequests"); 
       loadAllData();
+    } else {
+      toast.dismiss(toastId);
+      toast.error(res?.message || "Failed to create request");
     }
+  } catch (error) {
+    console.error("Post Error:", error);
+    toast.dismiss(toastId);
+    toast.error("Something went wrong while uploading");
+  } finally {
     setActionLoading(false);
-  };
-
- const handleCreateScanner = async () => {
-    // 1. Validation
-    if (!uploadAmount || !selectedImage) return alert("Enter amount and select QR");
-
-    setActionLoading(true);
-
-    try {
-      const res = await requestToPay(uploadAmount, selectedImage);
-
-      if (res?._id) {
-        // 2. Clear Data Immediately (UI Refresh)
-        setUploadAmount(""); 
-        setSelectedImage(null);
-        
-        // Reset the file input field visually if needed
-        const fileInputs = document.querySelectorAll('input[type="file"]');
-        fileInputs.forEach(input => { input.value = ""; });
-
-        // 3. Trigger Toast/Success Message
-        // Jar tu library use karat asshil tar: toast.success("Pay Request Created!");
-        alert("🎉 Pay Request Created Successfully!");
-
-        // 4. Navigation & Sync
-        setActiveTab("PayRequests"); 
-        loadAllData();
-      } else {
-        alert(res?.message || "Failed to create request");
+  }
+};
+const handleRedeemCashback = async () => {
+  const toastId = toast.loading('Redeeming cashback...');
+  try {
+    const res = await transferCashback();
+    toast.dismiss(toastId);
+    toast.success(
+      <div className="flex items-center gap-2">
+        <Zap size={20} className="text-[#00F5A0]" />
+        <div>
+          <div className="font-bold">Cashback Redeemed!</div>
+          <div className="text-sm">Transferred to INR wallet</div>
+        </div>
+      </div>,
+      { 
+        duration: 4000,
+        style: {
+          background: '#00F5A0',
+          color: '#051510',
+        }
       }
-    } catch (error) {
-      console.error("Post Error:", error);
-      alert("Something went wrong while uploading.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
+    );
+    loadAllData();
+  } catch (error) {
+    toast.dismiss(toastId);
+    toast.error("Failed to redeem cashback");
+  }
+};
 const startScanner = (readerId) => {
   // Stop any existing scanner
   if (window.currentScanner) {
@@ -210,17 +279,37 @@ const startScanner = (readerId) => {
   setScannerActive(true);
 };
 
-  const handleConfirmPayment = async () => {
-    if (!paymentScreenshot) return alert("Upload screenshot");
-    setActionLoading(true);
-    const res = await submitPayment(selectedScanner, paymentScreenshot);
-    if (res) {
-      alert("Proof submitted! Waiting for confirmation.");
-      setSelectedScanner(null); setPaymentScreenshot(null);
-      loadAllData();
-    }
-    setActionLoading(false);
-  };
+ const handleConfirmPayment = async () => {
+  if (!paymentScreenshot) {
+    toast.error("Please upload screenshot");
+    return;
+  }
+  
+  setActionLoading(true);
+  const toastId = toast.loading('Submitting proof...');
+  
+  const res = await submitPayment(selectedScanner, paymentScreenshot);
+  if (res) {
+    toast.dismiss(toastId);
+    toast.success(
+      <div>
+        <div className="font-bold">Proof Submitted! 📸</div>
+        <div className="text-sm text-[#00F5A0] mt-1">
+          Waiting for confirmation
+        </div>
+      </div>,
+      { duration: 4000 }
+    );
+    
+    setSelectedScanner(null); 
+    setPaymentScreenshot(null);
+    loadAllData();
+  } else {
+    toast.dismiss(toastId);
+    toast.error("Failed to submit proof");
+  }
+  setActionLoading(false);
+};
 
   if (loading) return (
     <div className="min-h-screen bg-[#051510] flex flex-col items-center justify-center text-[#00F5A0] font-black italic">
@@ -414,45 +503,88 @@ const startScanner = (readerId) => {
                   >
                     RESET
                   </button>
+<button
+  onClick={async () => {
+    if (!amount) {
+      toast.error("Please enter amount");
+      return;
+    }
+    
+    if (amount <= 0) {
+      toast.error("Amount must be greater than 0");
+      return;
+    }
 
-                  <button
-                    onClick={async () => {
-                      if (!amount) {
-                        alert("Please enter amount");
-                        return;
-                      }
-                      
-                      if (amount <= 0) {
-                        alert("Amount must be greater than 0");
-                        return;
-                      }
+    // Check if user has sufficient balance
+    const inrWallet = wallets.find(w => w.type === "INR");
+    if (inrWallet && inrWallet.balance < Number(amount)) {
+      toast.error(`Insufficient balance! Your INR wallet balance: ₹${inrWallet.balance}`);
+      return;
+    }
 
-                      setActionLoading(true);
-                      try {
-                        const res = await selfPay(amount);
-                        alert(`✅ Payment Successful!\nEarned ₹${res.cashbackEarned} cashback`);
-                        
-                        setQrData("");
-                        setAmount("");
-                        loadAllData();
-                      } catch (error) {
-                        alert("❌ Payment failed: " + (error.message || "Insufficient balance or server error"));
-                      } finally {
-                        setActionLoading(false);
-                      }
-                    }}
-                    disabled={actionLoading}
-                    className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
-                  >
-                    {actionLoading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <Loader size={16} className="animate-spin" />
-                        PAYING...
-                      </span>
-                    ) : (
-                      "PAY NOW"
-                    )}
-                  </button>
+    setActionLoading(true);
+    const toastId = toast.loading('Processing payment...');
+    
+    try {
+      console.log("Attempting self-pay with amount:", amount);
+      const res = await selfPay(amount);
+      console.log("Self-pay success:", res);
+      
+      // Success toast with cashback info
+      toast.dismiss(toastId);
+      toast.success(
+        <div>
+          <div className="font-bold">Payment Successful! 🎉</div>
+          <div className="text-sm text-[#00F5A0] mt-1">
+            Earned ₹{res.cashbackEarned} cashback (1%)
+          </div>
+        </div>,
+        { duration: 5000 }
+      );
+      
+      // Also show a separate cashback notification
+      toast.success(
+        <div className="flex items-center gap-2">
+          <Zap size={20} className="text-[#00F5A0]" />
+          <div>
+            <div className="font-bold">Cashback Credited!</div>
+            <div className="text-sm">+₹{res.cashbackEarned} to Cashback Wallet</div>
+          </div>
+        </div>,
+        { 
+          duration: 3000,
+          icon: '💰',
+          style: {
+            background: '#00F5A0',
+            color: '#051510',
+          }
+        }
+      );
+      
+      // Reset after successful payment
+      setQrData("");
+      setAmount("");
+      loadAllData(); // Refresh wallets
+    } catch (error) {
+      console.error("Self-pay error:", error);
+      toast.dismiss(toastId);
+      toast.error("Payment failed: " + (error.message || "Insufficient balance"));
+    } finally {
+      setActionLoading(false);
+    }
+  }}
+  disabled={actionLoading}
+  className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
+>
+  {actionLoading ? (
+    <span className="flex items-center justify-center gap-2">
+      <Loader size={16} className="animate-spin" />
+      PAYING...
+    </span>
+  ) : (
+    "PAY NOW"
+  )}
+</button>
                 </div>
               </div>
             )}
