@@ -100,11 +100,18 @@ const loadAllData = async () => {
     }
   };
 
-  useEffect(() => {
-    loadAllData();
-    const interval = setInterval(loadAllData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+useEffect(() => {
+  loadAllData();
+  const interval = setInterval(loadAllData, 10000);
+  
+  // Cleanup function
+  return () => {
+    clearInterval(interval);
+    if (window.currentScanner) {
+      window.currentScanner.stop().catch(() => {});
+    }
+  };
+}, []);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -162,8 +169,14 @@ const loadAllData = async () => {
       setActionLoading(false);
     }
   };
-const startScanner = () => {
-  const qrCode = new Html5Qrcode("reader");
+const startScanner = (readerId) => {
+  // Stop any existing scanner
+  if (window.currentScanner) {
+    window.currentScanner.stop().catch(() => {});
+  }
+
+  const qrCode = new Html5Qrcode(readerId);
+  window.currentScanner = qrCode;
 
   qrCode.start(
     { facingMode: "environment" },
@@ -175,8 +188,9 @@ const startScanner = () => {
       setQrData(decodedText);
       qrCode.stop();
       setScannerActive(false);
+      window.currentScanner = null;
       
-      // Optional: Auto-extract amount if present in QR
+      // Auto-extract amount if present in QR
       try {
         if (decodedText.includes("am=")) {
           const urlParams = new URLSearchParams(decodedText.split("?")[1]);
@@ -194,7 +208,6 @@ const startScanner = () => {
 
   setScannerActive(true);
 };
-
 
   const handleConfirmPayment = async () => {
     if (!paymentScreenshot) return alert("Upload screenshot");
@@ -294,8 +307,7 @@ const startScanner = () => {
     {/* 🔥 TOP ROW - SELF PAY + CREATE REQUEST */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-      {/* ================= SELF PAY ================= */}
-     {/* ================= SELF PAY ================= */}
+ {/* ================= SELF PAY ================= */}
 <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
   <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
     <Camera size={20} /> Self Pay
@@ -305,9 +317,9 @@ const startScanner = () => {
     <div className="space-y-4">
       {!qrData ? (
         <>
-          <div id="reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
+          <div id="self-pay-reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
           <button
-            onClick={startScanner}
+            onClick={() => startScanner('self-pay-reader')}
             className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95"
           >
             START CAMERA
@@ -333,18 +345,7 @@ const startScanner = () => {
                 setQrData("");
                 setAmount("");
                 // Restart scanner
-                const qrCode = new Html5Qrcode("reader");
-                qrCode.start(
-                  { facingMode: "environment" },
-                  { fps: 10, qrbox: 250 },
-                  (decodedText) => {
-                    setQrData(decodedText);
-                    qrCode.stop();
-                    setScannerActive(false);
-                  },
-                  () => {}
-                );
-                setScannerActive(true);
+                startScanner('self-pay-reader');
               }}
               className="flex-1 bg-white/5 py-4 rounded-2xl font-black"
             >
@@ -365,16 +366,13 @@ const startScanner = () => {
 
                 setActionLoading(true);
                 try {
-                  // Only send amount to backend
                   const res = await selfPay(amount);
-                  
                   alert(`✅ Payment Successful!\nEarned ₹${res.cashbackEarned} cashback`);
                   
-                  // Reset after successful payment
                   setQrData("");
                   setAmount("");
                   setScannerActive(false);
-                  loadAllData(); // Refresh wallets
+                  loadAllData();
                 } catch (error) {
                   alert("❌ Payment failed: " + (error.message || "Insufficient balance or server error"));
                 } finally {
@@ -414,52 +412,68 @@ const startScanner = () => {
   )}
 </div>
 
-      {/* ================= CREATE PAY REQUEST ================= */}
-      <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
-        <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-          <UploadCloud size={20} /> Create Your Pay Request
-        </h2>
+  {/* ================= CREATE PAY REQUEST ================= */}
+<div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+  <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
+    <UploadCloud size={20} /> Create Your Pay Request
+  </h2>
 
-        <input
-          type="number"
-          placeholder="Enter Amount"
-          value={uploadAmount}
-          onChange={(e) => setUploadAmount(e.target.value)}
-          className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg"
-        />
-        <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
- Capture QR
-  <input key={selectedImage ? 'has-image' : 'no-image'} type="file" accept="image/*" capture="environment" onChange={(e) => setSelectedImage(e.target.files[0])} className="hidden" /> </label>
-        <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
-          Upload QR Image
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setSelectedImage(e.target.files[0])}
-            className="hidden"
-          />
-        </label>
+  <input
+    type="number"
+    placeholder="Enter Amount"
+    value={uploadAmount}
+    onChange={(e) => setUploadAmount(e.target.value)}
+    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg"
+  />
+  
+  {/* Camera Capture Button */}
+  <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
+    <Camera size={18} className="inline mr-2" /> Capture QR with Camera
+    <input 
+      type="file" 
+      accept="image/*" 
+      capture="environment" 
+      onChange={(e) => setSelectedImage(e.target.files[0])} 
+      className="hidden" 
+    />
+  </label>
+  
+  {/* Upload Button */}
+  <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4">
+    <UploadCloud size={18} className="inline mr-2" /> Upload QR Image from Gallery
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => setSelectedImage(e.target.files[0])}
+      className="hidden"
+    />
+  </label>
 
-        {selectedImage && (
-          <img
-            src={URL.createObjectURL(selectedImage)}
-            className="w-full max-w-[180px] mx-auto rounded-xl border border-[#00F5A0] object-cover aspect-square mb-4"
-            alt="preview"
-          />
-        )}
+  {selectedImage && (
+    <div className="mb-4">
+      <img
+        src={URL.createObjectURL(selectedImage)}
+        className="w-full max-w-[180px] mx-auto rounded-xl border border-[#00F5A0] object-cover aspect-square"
+        alt="preview"
+      />
+      <p className="text-center text-xs text-[#00F5A0] mt-2">
+        {selectedImage.name}
+      </p>
+    </div>
+  )}
 
-        <button
-          onClick={handleCreateScanner}
-          disabled={actionLoading}
-          className={`w-full py-4 rounded-2xl font-black italic ${
-            actionLoading
-              ? "bg-gray-700 text-gray-400"
-              : "bg-[#00F5A0] text-black"
-          }`}
-        >
-          {actionLoading ? "UPLOADING..." : "POST TO Pay Requests"}
-        </button>
-      </div>
+  <button
+    onClick={handleCreateScanner}
+    disabled={actionLoading}
+    className={`w-full py-4 rounded-2xl font-black italic ${
+      actionLoading
+        ? "bg-gray-700 text-gray-400"
+        : "bg-[#00F5A0] text-black"
+    }`}
+  >
+    {actionLoading ? "UPLOADING..." : "POST TO PAY REQUESTS"}
+  </button>
+</div>
     </div>
 
     {/* 🔥 MY REQUESTS SECTION (User A chi requests) */}
