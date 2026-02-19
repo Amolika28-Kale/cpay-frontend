@@ -47,6 +47,10 @@ export default function UserDashboard() {
   const [qrData, setQrData] = useState("");
   const [amount, setAmount] = useState("");
   const [scannerActive, setScannerActive] = useState(false);
+  // Timer related states
+const [requestTimer, setRequestTimer] = useState(null);
+const [timerExpired, setTimerExpired] = useState(false);
+const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   
 
   const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
@@ -81,22 +85,22 @@ const loadAllData = async () => {
     // Check for new referral earnings
     if (ref && !ref.message && ref.referralEarnings > referralData.referralEarnings) {
       const newEarnings = ref.referralEarnings - referralData.referralEarnings;
-      toast.success(
-        <div className="flex items-center gap-2">
-          <Zap size={20} className="text-[#00F5A0]" />
-          <div>
-            <div className="font-bold">New Referral Earnings! 🎉</div>
-            <div className="text-sm">+₹{newEarnings.toFixed(2)} earned</div>
-          </div>
-        </div>,
-        { 
-          duration: 4000,
-          style: {
-            background: '#00F5A0',
-            color: '#051510',
-          }
-        }
-      );
+      // toast.success(
+      //   <div className="flex items-center gap-2">
+      //     <Zap size={20} className="text-[#00F5A0]" />
+      //     <div>
+      //       <div className="font-bold">New Referral Earnings! 🎉</div>
+      //       <div className="text-sm">+₹{newEarnings.toFixed(2)} earned</div>
+      //     </div>
+      //   </div>,
+      //   { 
+      //     duration: 4000,
+      //     style: {
+      //       background: '#00F5A0',
+      //       color: '#051510',
+      //     }
+      //   }
+      // );
     }
 
     setWallets(w || []);
@@ -128,6 +132,13 @@ useEffect(() => {
     }
   };
 }, []);
+useEffect(() => {
+  return () => {
+    if (requestTimer) {
+      clearTimeout(requestTimer);
+    }
+  };
+}, [requestTimer]);
 
   const handleLogout = () => {
     localStorage.clear();
@@ -198,6 +209,21 @@ const handleCreateScanner = async () => {
       const fileInputs = document.querySelectorAll('input[type="file"]');
       fileInputs.forEach(input => { input.value = ""; });
 
+      // Start 5 minute timer for this request
+      setTimerExpired(false);
+      setTimeLeft(300); // Reset to 5 minutes
+      
+      // Set timer to disable after 5 minutes
+      const timer = setTimeout(() => {
+        setTimerExpired(true);
+        toast.error('Request expired! No one accepted within 5 minutes.', {
+          duration: 5000,
+          icon: '⏰'
+        });
+      }, 300000); // 5 minutes in milliseconds
+      
+      setRequestTimer(timer);
+
       setActiveTab("PayRequests"); 
       loadAllData();
     } else {
@@ -210,6 +236,48 @@ const handleCreateScanner = async () => {
     toast.error("Something went wrong while uploading");
   } finally {
     setActionLoading(false);
+  }
+};
+const downloadQR = (s) => {
+  const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
+  
+  const link = document.createElement('a');
+  link.href = imageUrl;
+  link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
+  link.target = '_blank';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  toast.success('QR Code Downloaded!', {
+    duration: 2000,
+    icon: '📥',
+    style: {
+      background: '#00F5A0',
+      color: '#051510',
+    }
+  });
+};
+// Cancel request function
+const handleCancelRequest = async (requestId) => {
+  try {
+    const toastId = toast.loading('Cancelling request...');
+    // Call your API to cancel the request
+    // const res = await cancelRequest(requestId);
+    
+    toast.dismiss(toastId);
+    toast.success('Request cancelled successfully!');
+    
+    // Clear timer
+    if (requestTimer) {
+      clearTimeout(requestTimer);
+      setRequestTimer(null);
+    }
+    
+    setTimerExpired(false);
+    loadAllData(); // Refresh the list
+  } catch (error) {
+    toast.error('Failed to cancel request');
   }
 };
 const handleRedeemCashback = async () => {
@@ -397,13 +465,13 @@ const startScanner = (readerId) => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
       {/* ================= SELF PAY with LIVE CAMERA ================= */}
-      <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+      {/* <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
         <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
           <Camera size={20} /> Self Pay (Live Camera)
-        </h2>
+        </h2> */}
 
         {/* Live Camera Scanner */}
-        {scannerActive && !qrData ? (
+        {/* {scannerActive && !qrData ? (
           <div className="space-y-4">
             <div id="self-pay-reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
             <div className="text-center">
@@ -590,7 +658,7 @@ const startScanner = (readerId) => {
             )}
           </div>
         )}
-      </div>
+      </div> */}
 
       {/* ================= CREATE PAY REQUEST (Image Upload) ================= */}
       <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
@@ -862,63 +930,228 @@ const OverviewPage = ({ wallets, transactions, setActiveTab }) => {
   );
 };
 
-const RequestCard = ({ s, user, loadAllData, setSelectedScanner }) => {
+const RequestCard = ({ s, user, loadAllData, setSelectedScanner, timerExpired, onCancel }) => {
   const isOwner = String(s.user?._id) === String(user._id);
-  const statusColor = s.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 'bg-[#00F5A0]/10 text-[#00F5A0]';
+  const [timeLeft, setTimeLeft] = useState(300);
+  const [isExpired, setIsExpired] = useState(false);
+  
+  // Timer effect for new requests
+  useEffect(() => {
+    if (isOwner && s.status === "ACTIVE" && !s.acceptedBy) {
+      const createdTime = new Date(s.createdAt).getTime();
+      const currentTime = new Date().getTime();
+      const elapsedSeconds = Math.floor((currentTime - createdTime) / 1000);
+      const remaining = Math.max(0, 300 - elapsedSeconds);
+      
+      setTimeLeft(remaining);
+      setIsExpired(remaining === 0);
+
+      if (remaining > 0) {
+        const timer = setInterval(() => {
+          setTimeLeft(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsExpired(true);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
+
+        return () => clearInterval(timer);
+      }
+    }
+  }, [s.createdAt, s.status, isOwner, s.acceptedBy]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Function to download QR code - येथे डिफाईन केले
+  const downloadQR = () => {
+    const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
+    
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('QR Code Downloaded!', {
+      duration: 2000,
+      icon: '📥',
+      style: {
+        background: '#00F5A0',
+        color: '#051510',
+      }
+    });
+  };
+
+  const statusColor = s.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 
+                     s.status === 'ACCEPTED' ? 'bg-blue-500/10 text-blue-500' :
+                     s.status === 'PAYMENT_SUBMITTED' ? 'bg-yellow-500/10 text-yellow-500' :
+                     isExpired ? 'bg-red-500/10 text-red-500' : 'bg-[#00F5A0]/10 text-[#00F5A0]';
 
   return (
     <div className="bg-[#0A1F1A] border border-white/10 p-5 rounded-[2rem] relative flex flex-col h-full">
-      <div className={`absolute top-4 right-5 text-[10px] font-black uppercase px-2 py-1 rounded-full ${statusColor}`}>{s.status}</div>
-      <div className="bg-white p-2 rounded-2xl mb-4 w-fit mx-auto">
-        <img src={`https://cpay-backend.onrender.com${s.image}`} className="w-24 h-24 md:w-32 md:h-32 object-contain" alt="QR" />
+      {/* Status Badge with Timer */}
+      <div className="absolute top-4 right-5 flex items-center gap-2">
+        {isOwner && s.status === "ACTIVE" && !s.acceptedBy && !isExpired && (
+          <div className="bg-yellow-500/20 text-yellow-500 text-[8px] font-black px-2 py-1 rounded-full flex items-center gap-1">
+            <Clock size={10} />
+            {formatTime(timeLeft)}
+          </div>
+        )}
+        <div className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${statusColor}`}>
+          {isExpired ? 'EXPIRED' : s.status}
+        </div>
       </div>
+      
+      {/* QR Code Image with Download Button */}
+      <div className="relative group mb-4">
+        <div className="bg-white p-2 rounded-2xl w-fit mx-auto">
+          <img 
+            src={`https://cpay-backend.onrender.com${s.image}`} 
+            className="w-24 h-24 md:w-32 md:h-32 object-contain" 
+            alt="QR" 
+          />
+        </div>
+        
+        {/* Download Button */}
+        <button
+          onClick={downloadQR}  // आता function उपलब्ध आहे
+          className="absolute -top-2 -right-2 bg-[#00F5A0] text-black p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
+          title="Download QR Code"
+        >
+          <UploadCloud size={16} />
+        </button>
+      </div>
+      
+      {/* Amount */}
       <h3 className="text-2xl font-black text-center mb-1">₹{s.amount}</h3>
-      <p className="text-center text-[10px] text-gray-500 font-bold mb-6 italic uppercase">Node: {s.user?.name}</p>
+      <p className="text-center text-[10px] text-gray-500 font-bold mb-2 italic uppercase">
+        Created by: {s.user?.name}
+      </p>
 
+      {/* Expired Message */}
+      {isOwner && isExpired && s.status === "ACTIVE" && !s.acceptedBy && (
+        <div className="mb-4 p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+          <p className="text-center text-[10px] text-red-500 font-bold">
+            ⏰ This request has expired
+          </p>
+        </div>
+      )}
+
+      {/* ACCEPTED BY SECTION */}
+      {s.acceptedBy && (
+        <div className="mb-4 p-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
+          <p className="text-center text-[10px] text-blue-400 font-bold uppercase mb-1">
+            ⚡ ACCEPTED BY
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-black font-black text-xs">
+              {s.acceptedBy.name?.charAt(0) || '?'}
+            </div>
+            <p className="text-sm font-bold text-blue-400">
+              {s.acceptedBy.name}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
       <div className="mt-auto space-y-2">
         {isOwner ? (
+          // Owner View
           s.status === "PAYMENT_SUBMITTED" && (
             <div className="space-y-2">
-              <button onClick={() => window.open(`https://cpay-backend.onrender.com${s.paymentScreenshot}`)} className="w-full text-[#00F5A0] text-xs font-bold underline py-2">VIEW PROOF</button>
-              <button onClick={() => confirmRequest(s._id).then(loadAllData)} className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black text-sm">CONFIRM RECEIPT</button>
+              <button onClick={() => window.open(`https://cpay-backend.onrender.com${s.paymentScreenshot}`)} 
+                className="w-full text-[#00F5A0] text-xs font-bold underline py-2">
+                VIEW PROOF
+              </button>
+              <button onClick={() => confirmRequest(s._id).then(loadAllData)} 
+                className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black text-sm">
+                CONFIRM RECEIPT
+              </button>
             </div>
           )
         ) : (
-          s.status === "ACTIVE" && <button onClick={() => acceptRequest(s._id).then(loadAllData)} className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black italic text-sm">ACCEPT & PAY</button>
+          // Other Users View
+          <>
+            {s.status === "ACTIVE" && !isExpired && (
+              <button 
+                onClick={() => acceptRequest(s._id).then(loadAllData)} 
+                className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black italic text-sm"
+              >
+                ACCEPT & PAY
+              </button>
+            )}
+            {s.status === "ACTIVE" && isExpired && (
+              <button 
+                disabled
+                className="w-full bg-gray-700 text-gray-400 py-3 rounded-xl font-black italic text-sm cursor-not-allowed"
+              >
+                EXPIRED
+              </button>
+            )}
+          </>
         )}
+        
+        {/* Accepted by current user */}
         {String(s.acceptedBy?._id) === String(user._id) && s.status === "ACCEPTED" && (
-          <button onClick={() => setSelectedScanner(s._id)} className="w-full bg-blue-500 text-white py-3 rounded-xl font-black text-sm">UPLOAD SCREENSHOT</button>
+          <button 
+            onClick={() => setSelectedScanner(s._id)} 
+            className="w-full bg-blue-500 text-white py-3 rounded-xl font-black text-sm"
+          >
+            UPLOAD SCREENSHOT
+          </button>
+        )}
+
+        {/* Cancel Button for Owner */}
+        {isOwner && s.status === "ACTIVE" && !s.acceptedBy && (
+          <button 
+            onClick={() => handleCancelRequest(s._id)}
+            className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-black text-sm hover:bg-red-500/30 transition-all"
+          >
+            CANCEL REQUEST
+          </button>
         )}
       </div>
     </div>
   );
 };
 
-const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, depositData, setDepositData, txHash, setTxHash, setDepositScreenshot, handleDepositSubmit, actionLoading }) => (
-  <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
-    <h2 className="text-xl font-black italic text-[#00F5A0] mb-8 uppercase tracking-widest">Add Funds</h2>
-    <div className="grid grid-cols-1 gap-3 mb-6">
-      {paymentMethods.map(m => (
-        <button key={m._id} onClick={() => setSelectedMethod(m)} className={`w-full p-4 rounded-xl border text-left transition-all ${selectedMethod?._id === m._id ? "border-[#00F5A0] bg-[#00F5A0]/10" : "border-white/10 bg-black/20"}`}>
-          <p className="font-bold text-sm">{m.method}</p>
-        </button>
-      ))}
-    </div>
-    {selectedMethod && (
-      <div className="p-4 bg-white/5 rounded-xl mb-6 text-[11px] font-mono text-gray-400 border border-white/5 break-all">
-        <p className="text-[#00F5A0] font-black mb-2 uppercase">Protocol Info:</p>
-        {selectedMethod.method === "UPI" && <><p>ID: {selectedMethod.details.upiId}</p><p>NM: {selectedMethod.details.name}</p></>}
-        {selectedMethod.method === "BANK" && <><p>AC: {selectedMethod.details.accountNumber}</p><p>IF: {selectedMethod.details.ifsc}</p></>}
-        {selectedMethod.method.includes("USDT") && <><p>AD: {selectedMethod.details.address}</p><p>NT: {selectedMethod.details.network}</p></>}
+const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, depositData, setDepositData, txHash, setTxHash, setDepositScreenshot, handleDepositSubmit, actionLoading }) => {
+  // Filter to only show USDT methods
+  const usdtMethods = paymentMethods.filter(m => m.method?.includes("USDT"));
+  
+  return (
+    <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
+      <h2 className="text-xl font-black italic text-[#00F5A0] mb-8 uppercase tracking-widest">Add Funds</h2>
+      <div className="grid grid-cols-1 gap-3 mb-6">
+        {usdtMethods.map(m => (
+          <button key={m._id} onClick={() => setSelectedMethod(m)} className={`w-full p-4 rounded-xl border text-left transition-all ${selectedMethod?._id === m._id ? "border-[#00F5A0] bg-[#00F5A0]/10" : "border-white/10 bg-black/20"}`}>
+            <p className="font-bold text-sm">{m.method}</p>
+          </button>
+        ))}
       </div>
-    )}
-    <input type="number" value={depositData.amount} onChange={e => setDepositData({ ...depositData, amount: e.target.value })} placeholder="Amount" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-3 font-bold text-lg outline-none" />
-    <input type="text" value={txHash} onChange={e => setTxHash(e.target.value)} placeholder="UTR / Tx ID" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-4 font-bold outline-none" />
-    <input type="file" onChange={e => setDepositScreenshot(e.target.files[0])} className="w-full mb-6 text-xs text-gray-500" />
-    <button onClick={handleDepositSubmit} className="w-full bg-[#00F5A0] text-black py-5 rounded-2xl font-black italic active:scale-95 transition-transform">SUBMIT DEPOSIT</button>
-  </div>
-);
-
+      {selectedMethod && (
+        <div className="p-4 bg-white/5 rounded-xl mb-6 text-[11px] font-mono text-gray-400 border border-white/5 break-all">
+          <p className="text-[#00F5A0] font-black mb-2 uppercase">Protocol Info:</p>
+          {selectedMethod.method.includes("USDT") && <><p>AD: {selectedMethod.details.address}</p><p>NT: {selectedMethod.details.network}</p></>}
+        </div>
+      )}
+      <input type="number" value={depositData.amount} onChange={e => setDepositData({ ...depositData, amount: e.target.value })} placeholder="Amount" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-3 font-bold text-lg outline-none" />
+      <input type="text" value={txHash} onChange={e => setTxHash(e.target.value)} placeholder="Transaction Hash / TxID" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-4 font-bold outline-none" />
+      <input type="file" onChange={e => setDepositScreenshot(e.target.files[0])} className="w-full mb-6 text-xs text-gray-500" />
+      <button onClick={handleDepositSubmit} className="w-full bg-[#00F5A0] text-black py-5 rounded-2xl font-black italic active:scale-95 transition-transform">SUBMIT DEPOSIT</button>
+    </div>
+  );
+};
 const HistoryPage = ({ transactions }) => (
   <div className="bg-[#0A1F1A] border border-white/10 p-4 md:p-8 rounded-[2rem]">
     <h2 className="text-xl font-bold mb-6 italic">History</h2>
