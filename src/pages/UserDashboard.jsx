@@ -47,6 +47,7 @@ export default function UserDashboard() {
   const [qrData, setQrData] = useState("");
   const [amount, setAmount] = useState("");
   const [scannerActive, setScannerActive] = useState(false);
+  
 
   const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
 
@@ -166,19 +167,29 @@ const startScanner = () => {
 
   qrCode.start(
     { facingMode: "environment" },
-    { fps: 10, qrbox: 250 },
+    { 
+      fps: 10, 
+      qrbox: { width: 250, height: 250 } 
+    },
     (decodedText) => {
       setQrData(decodedText);
-
       qrCode.stop();
       setScannerActive(false);
-
-      // 🔥 AUTO OPEN UPI APP
-      if (decodedText.startsWith("upi://")) {
-        window.location.href = decodedText;
+      
+      // Optional: Auto-extract amount if present in QR
+      try {
+        if (decodedText.includes("am=")) {
+          const urlParams = new URLSearchParams(decodedText.split("?")[1]);
+          const qrAmount = urlParams.get("am");
+          if (qrAmount) setAmount(qrAmount);
+        }
+      } catch (e) {
+        console.log("Could not extract amount from QR");
       }
     },
-    () => {}
+    (errorMessage) => {
+      // Ignore errors, just continue scanning
+    }
   );
 
   setScannerActive(true);
@@ -284,59 +295,124 @@ const startScanner = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
       {/* ================= SELF PAY ================= */}
-      <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
-        <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-          <Camera size={20} /> Self Pay
-        </h2>
+     {/* ================= SELF PAY ================= */}
+<div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+  <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
+    <Camera size={20} /> Self Pay
+  </h2>
 
-        {!qrData ? (
-          <div className="space-y-4">
-            <div id="reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
-            <button
-              onClick={startScanner}
-              className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95"
-            >
-              START CAMERA
-            </button>
+  {!scannerActive ? (
+    <div className="space-y-4">
+      {!qrData ? (
+        <>
+          <div id="reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
+          <button
+            onClick={startScanner}
+            className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95"
+          >
+            START CAMERA
+          </button>
+        </>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-black/40 p-4 rounded-xl text-xs break-all text-gray-400 border border-white/5">
+            Scanned QR: {qrData.substring(0, 50)}...
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-black/40 p-4 rounded-xl text-xs break-all text-gray-400 border border-white/5">
-              {qrData}
-            </div>
 
-            <input
-              type="number"
-              placeholder="Enter Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-6 py-4 font-bold outline-none text-lg"
-            />
+          <input
+            type="number"
+            placeholder="Enter Amount to Pay"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-xl px-6 py-4 font-bold outline-none text-lg"
+          />
 
-            <div className="flex gap-4">
-              <button
-                onClick={() => setQrData("")}
-                className="flex-1 bg-white/5 py-4 rounded-2xl font-black"
-              >
-                RESET
-              </button>
+          <div className="flex gap-4">
+            <button
+              onClick={() => {
+                setQrData("");
+                setAmount("");
+                // Restart scanner
+                const qrCode = new Html5Qrcode("reader");
+                qrCode.start(
+                  { facingMode: "environment" },
+                  { fps: 10, qrbox: 250 },
+                  (decodedText) => {
+                    setQrData(decodedText);
+                    qrCode.stop();
+                    setScannerActive(false);
+                  },
+                  () => {}
+                );
+                setScannerActive(true);
+              }}
+              className="flex-1 bg-white/5 py-4 rounded-2xl font-black"
+            >
+              RESCAN
+            </button>
 
-              <button
-                onClick={async () => {
+            <button
+              onClick={async () => {
+                if (!amount) {
+                  alert("Please enter amount");
+                  return;
+                }
+                
+                if (amount <= 0) {
+                  alert("Amount must be greater than 0");
+                  return;
+                }
+
+                setActionLoading(true);
+                try {
+                  // Only send amount to backend
                   const res = await selfPay(amount);
-                  alert(res.message);
+                  
+                  alert(`✅ Payment Successful!\nEarned ₹${res.cashbackEarned} cashback`);
+                  
+                  // Reset after successful payment
                   setQrData("");
                   setAmount("");
-                  loadAllData();
-                }}
-                className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
-              >
-                PAY NOW
-              </button>
-            </div>
+                  setScannerActive(false);
+                  loadAllData(); // Refresh wallets
+                } catch (error) {
+                  alert("❌ Payment failed: " + (error.message || "Insufficient balance or server error"));
+                } finally {
+                  setActionLoading(false);
+                }
+              }}
+              disabled={actionLoading}
+              className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
+            >
+              {actionLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader size={16} className="animate-spin" />
+                  PAYING...
+                </span>
+              ) : (
+                "PAY NOW"
+              )}
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className="text-center py-8">
+      <Loader className="animate-spin mx-auto mb-4" size={40} />
+      <p className="text-sm text-gray-400">Position QR code in frame...</p>
+      <button
+        onClick={() => {
+          setScannerActive(false);
+          setQrData("");
+        }}
+        className="mt-4 text-[#00F5A0] underline"
+      >
+        Cancel
+      </button>
+    </div>
+  )}
+</div>
 
       {/* ================= CREATE PAY REQUEST ================= */}
       <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">

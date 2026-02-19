@@ -159,13 +159,25 @@ export const confirmRequest = async (scannerId) => {
 
 
 /* 6️⃣ SELF PAY (1% Cashback) */
+// In apiService.js
 export const selfPay = async (amount) => {
+  try {
+    const token = localStorage.getItem("token");
   const res = await fetch(`${API_BASE}/scanner/self-pay`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ amount }),
-  });
-  return res.json();
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ amount: Number(amount) }), // Ensure amount is number
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message);
+    return data;
+  } catch (error) {
+    throw error;
+  }
 };
 
 
