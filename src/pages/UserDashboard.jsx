@@ -53,8 +53,10 @@ const [timerExpired, setTimerExpired] = useState(false);
 const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   
 
-  const user = JSON.parse(localStorage.getItem("user")) || { name: "User" };
-
+const user = JSON.parse(localStorage.getItem("user")) || { 
+  name: "User",
+  mobile: "XXXXXXXXXX" // mobile number असेल तर
+};
   // Calculate active requests for the badge
   const activeRequestsCount = scanners.filter(s => s.status === "ACTIVE" && String(s.user?._id) !== String(user._id)).length;
 
@@ -447,13 +449,20 @@ const startScanner = (readerId) => {
           <h1 className="text-3xl font-black italic uppercase tracking-tighter">
             {activeTab === "Scanner" ? "Scanner Queue" : activeTab === "PayRequests" ? "Pay Requests" : activeTab}
           </h1>
-          <div className="flex items-center gap-4 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
-            <div className="w-10 h-10 rounded-full bg-[#00F5A0] text-black flex items-center justify-center font-black">{user.name.charAt(0)}</div>
-            <div>
-              <p className="text-xs font-bold">{user.name}</p>
-              <p className="text-[8px] text-[#00F5A0] font-black italic uppercase tracking-widest">Active Node</p>
-            </div>
-          </div>
+<div className="flex items-center gap-4 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
+  {/* <div className="w-10 h-10 rounded-full bg-[#00F5A0] text-black flex items-center justify-center font-black">
+    {user.name ? user.name.charAt(0) : user.mobile?.charAt(0) || 'U'}
+  </div> */}
+  <div>
+    {/* <p className="text-xs font-bold"> */}
+      {/* {user.name || `User ${user.mobile?.slice(-4)}`}  */}
+      {/* Last 4 digits of mobile */}
+    {/* </p> */}
+    <p className="text-[8px] text-[#00F5A0] font-black italic uppercase tracking-widest">
+      ID: {user._id?.slice(-6)} {/* Last 6 digits of ID */}
+    </p>
+  </div>
+</div>
         </header>
 
         {activeTab === "Overview" && <OverviewPage wallets={wallets} transactions={transactions} setActiveTab={setActiveTab} />}
@@ -1033,9 +1042,10 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, timerExpired, o
       
       {/* Amount */}
       <h3 className="text-2xl font-black text-center mb-1">₹{s.amount}</h3>
-      <p className="text-center text-[10px] text-gray-500 font-bold mb-2 italic uppercase">
-        Created by: {s.user?.name}
-      </p>
+          {/* created BY SECTION */}
+<p className="text-center text-[10px] text-gray-500 font-bold mb-2 italic uppercase">
+  Created by: {s.user?.name || `User ${s.user?.mobile?.slice(-4) || s.user?._id?.slice(-6)}`}
+</p>
 
       {/* Expired Message */}
       {isOwner && isExpired && s.status === "ACTIVE" && !s.acceptedBy && (
@@ -1046,22 +1056,22 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, timerExpired, o
         </div>
       )}
 
-      {/* ACCEPTED BY SECTION */}
-      {s.acceptedBy && (
-        <div className="mb-4 p-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
-          <p className="text-center text-[10px] text-blue-400 font-bold uppercase mb-1">
-            ⚡ ACCEPTED BY
-          </p>
-          <div className="flex items-center justify-center gap-2">
-            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-black font-black text-xs">
-              {s.acceptedBy.name?.charAt(0) || '?'}
-            </div>
-            <p className="text-sm font-bold text-blue-400">
-              {s.acceptedBy.name}
-            </p>
-          </div>
-        </div>
-      )}
+{/* ACCEPTED BY SECTION */}
+{s.acceptedBy && (
+  <div className="mb-4 p-2 bg-blue-500/10 rounded-xl border border-blue-500/20">
+    <p className="text-center text-[10px] text-blue-400 font-bold uppercase mb-1">
+      ⚡ ACCEPTED BY
+    </p>
+    <div className="flex items-center justify-center gap-2">
+      <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-black font-black text-xs">
+        {s.acceptedBy.name?.charAt(0) || s.acceptedBy.mobile?.charAt(0) || '?'}
+      </div>
+      <p className="text-sm font-bold text-blue-400">
+        {s.acceptedBy.name || `User ${s.acceptedBy.mobile?.slice(-4)}`}
+      </p>
+    </div>
+  </div>
+)}
 
       {/* Action Buttons */}
       <div className="mt-auto space-y-2">

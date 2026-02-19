@@ -4,13 +4,12 @@ import {
   Zap,
   Mail,
   Lock,
-  User,
   ArrowRight,
   ShieldCheck,
   Eye,
   EyeOff,
-  UserPlus,
-  ChevronLeft
+  ChevronLeft,
+  Phone
 } from "lucide-react";
 
 import {
@@ -22,7 +21,7 @@ export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
-    name: "",
+    mobile: "", // name ऐवजी mobile
     email: "",
     password: "",
     referralCode: ""
@@ -48,7 +47,7 @@ const handleSubmit = async (e) => {
       response = await login(formData.email, formData.password);
     } else {
       response = await register({
-        name: formData.name,
+        mobile: formData.mobile, // mobile पाठवतो
         email: formData.email,
         password: formData.password,
         referralCode: formData.referralCode || undefined
@@ -74,7 +73,6 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
-
 
   return (
     <div className="min-h-screen bg-[#051510] text-white flex flex-col items-center justify-center p-6 font-sans relative overflow-hidden">
@@ -124,14 +122,16 @@ const handleSubmit = async (e) => {
 
             {!isLogin && (
               <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
                 <input
-                  type="text"
-                  name="name"
-                  placeholder="Full Name"
-                  value={formData.name}
+                  type="tel"
+                  name="mobile"
+                  placeholder="WhatsApp Number"
+                  value={formData.mobile}
                   onChange={handleInputChange}
                   required
+                  pattern="[0-9]{10}"
+                  title="Please enter a valid 10-digit mobile number"
                   className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white"
                 />
               </div>
@@ -172,7 +172,7 @@ const handleSubmit = async (e) => {
 
             {!isLogin && (
               <div className="relative group">
-                <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
+                <Zap className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
                 <input
                   type="text"
                   name="referralCode"
