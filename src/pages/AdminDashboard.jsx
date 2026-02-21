@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { 
   LayoutDashboard, Users, CreditCard, RefreshCcw, 
   Settings, LogOut, Check, X, ShieldAlert, Menu, Loader2, ArrowRightLeft,
@@ -21,6 +21,14 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Refs for notification tracking
+  const prevDepositCount = useRef(0);
+  const prevWithdrawCount = useRef(0);
+
+  // Calculate pending counts
+  const pendingDeposits = deposits.filter(d => d.status === 'pending').length;
+  const pendingWithdraws = withdraws.filter(w => w.status === 'pending').length;
 
   const loadData = async () => {
     try {
@@ -31,6 +39,21 @@ export default function AdminDashboard() {
         getAllScanners(),
         getAllTransactions()
       ]);
+      
+      // Check for new pending deposits (notification sound)
+      const newDeposits = (Array.isArray(dData) ? dData : []).filter(d => d.status === 'pending').length;
+      if (newDeposits > prevDepositCount.current) {
+        playNotificationSound();
+      }
+      prevDepositCount.current = newDeposits;
+      
+      // Check for new pending withdraws (optional)
+      const newWithdraws = (Array.isArray(wData) ? wData : []).filter(w => w.status === 'pending').length;
+      if (newWithdraws > prevWithdrawCount.current) {
+        playNotificationSound();
+      }
+      prevWithdrawCount.current = newWithdraws;
+      
       setUsers(uData || []);
       setDeposits(Array.isArray(dData) ? dData : []);
       setWithdraws(Array.isArray(wData) ? wData : []);
@@ -41,6 +64,12 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Notification sound function
+  const playNotificationSound = () => {
+    const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+    audio.play().catch(err => console.log("Audio play blocked by browser"));
   };
 
   useEffect(() => {
@@ -73,8 +102,12 @@ export default function AdminDashboard() {
           <Zap size={24} className="text-[#00F5A0]" />
           <span className="font-bold text-xl italic tracking-tighter">ADMIN HUB</span>
         </div>
-        <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-white/5 rounded-lg">
+        <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-white/5 rounded-lg relative">
           <Menu className="text-[#00F5A0]" />
+          {/* Mobile notification badge */}
+          {(pendingDeposits > 0 || pendingWithdraws > 0) && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-ping" />
+          )}
         </button>
       </div>
 
@@ -93,8 +126,22 @@ export default function AdminDashboard() {
         <nav className="flex-1 space-y-1">
           <SidebarLink icon={<LayoutDashboard size={18}/>} label="Dashboard" active={activeTab === "Dashboard"} onClick={() => {setActiveTab("Dashboard"); setIsSidebarOpen(false);}} />
           <SidebarLink icon={<Users size={18}/>} label="User Base" active={activeTab === "Users"} onClick={() => {setActiveTab("Users"); setIsSidebarOpen(false);}} />
-          <SidebarLink icon={<CreditCard size={18}/>} label="Deposits" badge={deposits.filter(d=>d.status==='pending').length} active={activeTab === "Deposits"} onClick={() => {setActiveTab("Deposits"); setIsSidebarOpen(false);}} />
-          <SidebarLink icon={<ArrowRightLeft size={18}/>} label="Withdraws" badge={withdraws.filter(w=>w.status==='pending').length} active={activeTab === "Withdraws"} onClick={() => {setActiveTab("Withdraws"); setIsSidebarOpen(false);}} />
+          <SidebarLink 
+            icon={<CreditCard size={18}/>} 
+            label="Deposits" 
+            badge={pendingDeposits} 
+            active={activeTab === "Deposits"} 
+            onClick={() => {setActiveTab("Deposits"); setIsSidebarOpen(false);}} 
+            highlight={pendingDeposits > 0}
+          />
+          <SidebarLink 
+            icon={<ArrowRightLeft size={18}/>} 
+            label="Withdraws" 
+            badge={pendingWithdraws} 
+            active={activeTab === "Withdraws"} 
+            onClick={() => {setActiveTab("Withdraws"); setIsSidebarOpen(false);}} 
+            highlight={pendingWithdraws > 0}
+          />
           <SidebarLink icon={<ScanLine size={18}/>} label="P2P Scanners" active={activeTab === "Scanners"} onClick={() => {setActiveTab("Scanners"); setIsSidebarOpen(false);}} />
           <SidebarLink icon={<ListOrdered size={18}/>} label="Global Ledger" active={activeTab === "Ledger"} onClick={() => {setActiveTab("Ledger"); setIsSidebarOpen(false);}} />
           
@@ -111,6 +158,13 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-4 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
               <div className="w-8 h-8 rounded-full bg-[#00F5A0] text-[#051510] flex items-center justify-center font-black">A</div>
               <span className="text-xs font-bold text-gray-400">ROOT ADMIN</span>
+              {/* Desktop notification badge */}
+              {(pendingDeposits > 0 || pendingWithdraws > 0) && (
+                <span className="flex items-center gap-1 bg-red-500/10 text-red-500 px-2 py-1 rounded-full text-[8px] font-black uppercase animate-pulse">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                  {pendingDeposits + pendingWithdraws} PENDING
+                </span>
+              )}
             </div>
         </header>
 
@@ -118,9 +172,19 @@ export default function AdminDashboard() {
           <div className="space-y-8 animate-in fade-in duration-500">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <StatBox label="Network Nodes" val={users.length} />
-              <StatBox label="Verification Queue" val={deposits.filter(d=>d.status==='pending').length} highlight />
+              <StatBox 
+                label="Deposit Queue" 
+                val={pendingDeposits} 
+                highlight={pendingDeposits > 0}
+                subText="pending"
+              />
+              <StatBox 
+                label="Withdraw Queue" 
+                val={pendingWithdraws} 
+                highlight={pendingWithdraws > 0}
+                subText="pending"
+              />
               <StatBox label="Total Float (USDT)" val={users.reduce((a, b) => a + (b.wallets?.find(w=>w.type==="USDT")?.balance || 0), 0).toFixed(2)} />
-              <StatBox label="System Volume" val={transactions.length} />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -134,7 +198,15 @@ export default function AdminDashboard() {
               </div>
 
               <div className="lg:col-span-2 bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-6 md:p-8">
-                <h3 className="text-xl font-bold mb-6 italic flex items-center gap-2"><Clock size={20} className="text-[#00F5A0]"/> Recent Transactions</h3>
+                <h3 className="text-xl font-bold mb-6 italic flex items-center gap-2">
+                  <Clock size={20} className="text-[#00F5A0]"/> 
+                  Recent Transactions
+                  {(pendingDeposits > 0 || pendingWithdraws > 0) && (
+                    <span className="bg-red-500/10 text-red-500 text-[8px] px-2 py-1 rounded-full animate-pulse">
+                      {pendingDeposits + pendingWithdraws} pending
+                    </span>
+                  )}
+                </h3>
                 <div className="space-y-3">
                   {transactions.slice(0, 5).map(tx => (
                     <div key={tx._id} className="flex justify-between items-center p-4 bg-white/5 rounded-2xl border border-white/5 group transition-all hover:bg-white/[0.08]">
@@ -223,8 +295,30 @@ export default function AdminDashboard() {
             </div>
         )}
 
-        {activeTab === "Deposits" && <DepositListView items={deposits} handleAction={handleAction} />}
-        {activeTab === "Withdraws" && <WithdrawListView items={withdraws} handleAction={handleAction} />}
+        {activeTab === "Deposits" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-black italic">Deposit Queue</h2>
+              <div className="bg-orange-500/10 text-orange-500 px-4 py-2 rounded-full text-sm font-bold">
+                {pendingDeposits} Pending {pendingDeposits === 1 ? 'Request' : 'Requests'}
+              </div>
+            </div>
+            <DepositListView items={deposits} handleAction={handleAction} />
+          </div>
+        )}
+        
+        {activeTab === "Withdraws" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-black italic">Withdraw Queue</h2>
+              <div className="bg-orange-500/10 text-orange-500 px-4 py-2 rounded-full text-sm font-bold">
+                {pendingWithdraws} Pending {pendingWithdraws === 1 ? 'Request' : 'Requests'}
+              </div>
+            </div>
+            <WithdrawListView items={withdraws} handleAction={handleAction} />
+          </div>
+        )}
+        
         {activeTab === "Scanners" && <ScannerListView items={scanners} />}
 
         {/* BOTTOM SPACER FOR MOBILE */}
@@ -236,17 +330,45 @@ export default function AdminDashboard() {
 
 /* ================= COMPONENT MODULES ================= */
 
-const SidebarLink = ({ icon, label, active, badge, onClick }) => (
-  <button onClick={onClick} className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl transition-all font-bold text-sm ${active ? 'bg-[#00F5A0] text-[#051510] shadow-[0_10px_25px_rgba(0,245,160,0.3)]' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+const SidebarLink = ({ icon, label, active, badge, onClick, highlight }) => (
+  <button onClick={onClick} className={`w-full flex items-center justify-between px-4 py-4 rounded-2xl transition-all font-bold text-sm relative ${
+    active 
+      ? 'bg-[#00F5A0] text-[#051510] shadow-[0_10px_25px_rgba(0,245,160,0.3)]' 
+      : highlight && badge > 0
+        ? 'text-orange-400 hover:text-orange-300 hover:bg-orange-500/10 animate-pulse'
+        : 'text-gray-400 hover:text-white hover:bg-white/5'
+  }`}>
     <div className="flex items-center gap-3">{icon} {label}</div>
-    {badge > 0 && <span className={`${active ? 'bg-black text-white' : 'bg-[#00F5A0] text-black'} text-[10px] px-2 py-0.5 rounded-full font-black italic shadow-sm`}>{badge}</span>}
+    {badge > 0 && (
+      <span className={`${
+        active 
+          ? 'bg-black text-white' 
+          : highlight 
+            ? 'bg-orange-500 text-white'
+            : 'bg-[#00F5A0] text-black'
+      } text-[10px] px-2 py-0.5 rounded-full font-black italic shadow-sm`}>
+        {badge}
+      </span>
+    )}
+    {/* Pulsing dot for new pending items */}
+    {highlight && badge > 0 && !active && (
+      <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full animate-ping" />
+    )}
   </button>
 );
 
-const StatBox = ({ label, val, highlight }) => (
-  <div className="bg-[#0A1F1A] border border-white/10 p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] group hover:border-[#00F5A0]/50 transition-all shadow-lg">
-    <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest italic mb-2">{label}</p>
-    <h3 className={`text-xl md:text-3xl font-black ${highlight ? 'text-orange-500 animate-pulse' : 'text-white'} italic tracking-tighter`}>{val}</h3>
+const StatBox = ({ label, val, highlight, subText }) => (
+  <div className={`bg-[#0A1F1A] border ${
+    highlight ? 'border-orange-500/50 bg-orange-500/5' : 'border-white/10'
+  } p-5 md:p-6 rounded-[1.5rem] md:rounded-[2rem] group hover:border-[#00F5A0]/50 transition-all shadow-lg relative`}>
+    <p className="text-[9px] font-black uppercase text-gray-500 tracking-widest italic mb-2">
+      {label}
+      {highlight && <span className="ml-2 text-orange-500 animate-pulse">●</span>}
+    </p>
+    <h3 className={`text-xl md:text-3xl font-black ${
+      highlight ? 'text-orange-500 animate-pulse' : 'text-white'
+    } italic tracking-tighter`}>{val}</h3>
+    {subText && <p className="text-[8px] text-gray-600 mt-1">{subText}</p>}
   </div>
 );
 
@@ -254,7 +376,13 @@ const DepositListView = ({ items, handleAction }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom">
         {items.map(item => (
             <div key={item._id} className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem] relative flex flex-col h-full shadow-xl">
-                <div className={`absolute top-0 right-0 px-6 py-2 text-[9px] font-black uppercase italic rounded-bl-2xl ${item.status === 'pending' ? 'bg-orange-500 text-white' : 'bg-green-500 text-black'}`}>{item.status}</div>
+                <div className={`absolute top-0 right-0 px-6 py-2 text-[9px] font-black uppercase italic rounded-bl-2xl ${
+                  item.status === 'pending' 
+                    ? 'bg-orange-500 text-white animate-pulse' 
+                    : item.status === 'approved'
+                      ? 'bg-green-500 text-black'
+                      : 'bg-red-500 text-white'
+                }`}>{item.status}</div>
                 <div className="mb-6">
                     <p className="text-[10px] font-bold text-gray-600 uppercase mb-4 tracking-tighter">Deposit Protocol</p>
                     <p className="font-bold text-sm truncate mb-4 text-[#00F5A0]">{item.user?.email}</p>
@@ -270,7 +398,7 @@ const DepositListView = ({ items, handleAction }) => (
                     </div>
                 )}
                 {item.status === 'pending' && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 mt-auto">
                         <button onClick={() => handleAction('DEPOSIT', item._id, 'approved')} className="flex-1 bg-[#00F5A0] text-black py-3.5 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Approve</button>
                         <button onClick={() => handleAction('DEPOSIT', item._id, 'rejected')} className="flex-1 bg-red-500 text-white py-3.5 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Reject</button>
                     </div>
@@ -284,7 +412,13 @@ const WithdrawListView = ({ items, handleAction }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom">
         {items.map(item => (
             <div key={item._id} className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem] relative flex flex-col h-full shadow-xl">
-                <div className={`absolute top-0 right-0 px-6 py-2 text-[9px] font-black uppercase italic rounded-bl-2xl ${item.status === 'pending' ? 'bg-orange-500 text-white' : 'bg-green-500 text-black'}`}>{item.status}</div>
+                <div className={`absolute top-0 right-0 px-6 py-2 text-[9px] font-black uppercase italic rounded-bl-2xl ${
+                  item.status === 'pending' 
+                    ? 'bg-orange-500 text-white animate-pulse' 
+                    : item.status === 'approved'
+                      ? 'bg-green-500 text-black'
+                      : 'bg-red-500 text-white'
+                }`}>{item.status}</div>
                 <div className="mb-6">
                     <p className="text-[10px] font-bold text-gray-600 uppercase mb-4 tracking-tighter">Withdraw Protocol</p>
                     <p className="font-bold text-sm truncate mb-4 text-[#00F5A0]">{item.user?.email || item.userId?.email}</p>
@@ -308,7 +442,13 @@ const ScannerListView = ({ items }) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom">
         {items.map(s => (
             <div key={s._id} className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem] relative flex flex-col shadow-xl">
-                <div className={`absolute top-4 right-6 px-2 py-1 bg-blue-500/10 text-blue-400 text-[9px] font-black uppercase rounded-full`}>{s.status}</div>
+                <div className={`absolute top-4 right-6 px-2 py-1 ${
+                  s.status === 'ACTIVE' 
+                    ? 'bg-green-500/10 text-green-500 animate-pulse' 
+                    : s.status === 'COMPLETED'
+                      ? 'bg-blue-500/10 text-blue-400'
+                      : 'bg-yellow-500/10 text-yellow-500'
+                } text-[9px] font-black uppercase rounded-full`}>{s.status}</div>
                 <div className="bg-white p-3 rounded-2xl mb-6 w-fit mx-auto mt-6 shadow-2xl">
                     <img src={`https://cpay-backend.onrender.com${s.image}`} className="w-24 h-24 object-contain" alt="QR" />
                 </div>

@@ -30,7 +30,7 @@ export default function Landing() {
             <div className="bg-[#00F5A0] p-2 rounded-lg shadow-[0_0_20px_rgba(0,245,160,0.3)]">
               <Zap size={20} className="text-[#051510] fill-current" />
             </div>
-            <span className="text-xl font-bold tracking-tight">CPay</span>
+            <span className="text-xl font-bold tracking-tight">CPayLink</span>
           </div>
           <div className="hidden md:flex gap-8 text-sm font-medium text-gray-400">
             <a href="#features" className="hover:text-[#00F5A0] transition-colors">Features</a>
@@ -107,7 +107,7 @@ export default function Landing() {
       {/* ================= WHY CHOOSE CPAY ================= */}
       <section id="features" className="py-24 px-6 bg-[#030D0A]">
         <div className="max-w-7xl mx-auto text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Why Choose CPay?</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">Why Choose CPayLink?</h2>
           <p className="text-gray-500 max-w-2xl mx-auto">We bridge the gap between your digital assets and real-world spending with a focus on security and efficiency.</p>
         </div>
 
@@ -142,7 +142,7 @@ export default function Landing() {
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-12">
             <StepItem number="1" title="Signup" desc="Create an account in under 30 seconds with minimal KYC." />
-            <StepItem number="2" title="Deposit USDT" desc="Send USDT to your personal CPay secure wallet." />
+            <StepItem number="2" title="Deposit USDT" desc="Send USDT to your personal CPayLink secure wallet." />
             <StepItem number="3" title="Convert" desc="Convert your USDT balance to INR instantly." />
             <StepItem number="4" title="Pay Scanner" desc="Scan any merchant QR code and pay with INR." />
             <StepItem number="5" title="Earn Cashback" desc="Get rewarded for every successful transaction." />
@@ -250,7 +250,7 @@ export default function Landing() {
         <div className="bg-[#0A1F1A] border border-white/10 rounded-[3rem] p-12 md:p-20 text-center max-w-5xl w-full relative overflow-hidden">
           <div className="absolute top-0 right-0 w-64 h-64 bg-[#00F5A0]/10 blur-[80px]"></div>
           <h2 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">Ready to spend your crypto?</h2>
-          <p className="text-gray-400 mb-12 text-lg max-w-2xl mx-auto">Join 10,000+ users who are already using CPay to bridge their digital assets with the Indian economy.</p>
+          <p className="text-gray-400 mb-12 text-lg max-w-2xl mx-auto">Join 10,000+ users who are already using CPayLink to bridge their digital assets with the Indian economy.</p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <input type="email" placeholder="Enter your email" className="bg-black/20 border border-white/10 rounded-xl px-6 py-4 w-full max-w-xs focus:outline-none focus:border-[#00F5A0]/50" />
@@ -272,7 +272,7 @@ export default function Landing() {
             <a href="#" className="hover:text-white transition-colors">Support</a>
             <a href="#" className="hover:text-white transition-colors">Telegram</a>
           </div>
-          <p className="text-[10px] text-gray-600 font-bold tracking-widest uppercase">© 2024 CPay Technologies. All rights reserved.</p>
+          <p className="text-[10px] text-gray-600 font-bold tracking-widest uppercase">© 2024 CPayLink Technologies. All rights reserved.</p>
         </div>
       </footer>
     </div>
