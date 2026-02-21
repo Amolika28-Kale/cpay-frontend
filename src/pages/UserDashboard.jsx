@@ -395,7 +395,7 @@ const startScanner = (readerId) => {
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1F1A] border-b border-white/5 sticky top-0 z-[100]">
         <div className="flex items-center gap-2">
           <Zap size={24} className="text-[#00F5A0]" />
-          <span className="font-bold text-xl italic">CPay</span>
+          <span className="font-bold text-xl italic">CpayLink</span>
         </div>
         <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-white/5 rounded-lg">
           <Menu className="text-[#00F5A0]" />
@@ -409,7 +409,7 @@ const startScanner = (readerId) => {
         <div className="flex items-center justify-between mb-10">
           <div className="flex items-center gap-2 px-2">
             <div className="bg-[#00F5A0] p-1.5 rounded-lg text-[#051510]"><Zap size={20} /></div>
-            <span className="text-2xl font-black italic">CPay</span>
+            <span className="text-2xl font-black italic">CpayLink</span>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2"><X size={24} /></button>
         </div>
@@ -418,13 +418,13 @@ const startScanner = (readerId) => {
           <SidebarLink icon={<LayoutGrid size={20} />} label="Overview" active={activeTab === "Overview"} onClick={() => { setActiveTab("Overview"); setIsSidebarOpen(false); }} />
           <SidebarLink icon={<ScanLine size={20} />} label="Scanner Queue" active={activeTab === "Scanner"} onClick={() => { setActiveTab("Scanner"); setIsSidebarOpen(false); }} />
 {/* PAY REQUESTS WITH BADGE */}
-          <SidebarLink 
+          {/* <SidebarLink 
             icon={<Clock size={20} />} 
             label="Pay Requests" 
             active={activeTab === "PayRequests"} 
             badge={activeRequestsCount}
             onClick={() => { setActiveTab("PayRequests"); setIsSidebarOpen(false); }} 
-          />     
+          />      */}
          <SidebarLink icon={<Wallet size={20} />} label="Deposit" active={activeTab === "Deposit"} onClick={() => { setActiveTab("Deposit"); setIsSidebarOpen(false); }} />
           <SidebarLink icon={<ArrowRightLeft size={20} />} label="History" active={activeTab === "History"} onClick={() => { setActiveTab("History"); setIsSidebarOpen(false); }} />
           <SidebarLink
@@ -450,14 +450,9 @@ const startScanner = (readerId) => {
             {activeTab === "Scanner" ? "Scanner Queue" : activeTab === "PayRequests" ? "Pay Requests" : activeTab}
           </h1>
 <div className="flex items-center gap-4 bg-white/5 p-2 pr-6 rounded-full border border-white/10">
-  {/* <div className="w-10 h-10 rounded-full bg-[#00F5A0] text-black flex items-center justify-center font-black">
-    {user.name ? user.name.charAt(0) : user.mobile?.charAt(0) || 'U'}
-  </div> */}
+ 
   <div>
-    {/* <p className="text-xs font-bold"> */}
-      {/* {user.name || `User ${user.mobile?.slice(-4)}`}  */}
-      {/* Last 4 digits of mobile */}
-    {/* </p> */}
+  
     <p className="text-[8px] text-[#00F5A0] font-black italic uppercase tracking-widest">
       ID: {user._id?.slice(-6)} {/* Last 6 digits of ID */}
     </p>
@@ -473,201 +468,7 @@ const startScanner = (readerId) => {
     {/* 🔥 TOP ROW - SELF PAY + CREATE REQUEST */}
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-      {/* ================= SELF PAY with LIVE CAMERA ================= */}
-      {/* <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
-        <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-          <Camera size={20} /> Self Pay (Live Camera)
-        </h2> */}
-
-        {/* Live Camera Scanner */}
-        {/* {scannerActive && !qrData ? (
-          <div className="space-y-4">
-            <div id="self-pay-reader" className="w-full max-w-xs mx-auto rounded-2xl overflow-hidden border border-white/10 bg-black aspect-square" />
-            <div className="text-center">
-              <Loader className="animate-spin mx-auto mb-2" size={24} />
-              <p className="text-sm text-gray-400">Position QR code in frame...</p>
-              <button
-                onClick={() => {
-                  if (window.currentScanner) {
-                    window.currentScanner.stop();
-                    window.currentScanner = null;
-                  }
-                  setScannerActive(false);
-                  setQrData("");
-                }}
-                className="mt-4 text-[#00F5A0] underline"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {!qrData ? (
-              <>
-                <div className="bg-black/40 p-8 rounded-xl text-center border border-white/10">
-                  <Camera size={48} className="mx-auto mb-4 text-gray-500" />
-                  <p className="text-gray-400 mb-4">Click below to start camera</p>
-                </div>
-                <button
-                  onClick={() => {
-                    setScannerActive(true);
-                    setQrData("");
-                    // Small delay to ensure DOM is ready
-                    setTimeout(() => {
-                      if (window.currentScanner) {
-                        window.currentScanner.stop();
-                      }
-                      const qrCode = new Html5Qrcode("self-pay-reader");
-                      window.currentScanner = qrCode;
-                      
-                      qrCode.start(
-                        { facingMode: "environment" },
-                        { 
-                          fps: 10, 
-                          qrbox: { width: 250, height: 250 } 
-                        },
-                        (decodedText) => {
-                          setQrData(decodedText);
-                          qrCode.stop();
-                          setScannerActive(false);
-                          window.currentScanner = null;
-                          
-                          // Auto-extract amount if present in QR
-                          try {
-                            if (decodedText.includes("am=")) {
-                              const urlParams = new URLSearchParams(decodedText.split("?")[1]);
-                              const qrAmount = urlParams.get("am");
-                              if (qrAmount) setAmount(qrAmount);
-                            }
-                          } catch (e) {
-                            console.log("Could not extract amount from QR");
-                          }
-                        },
-                        (errorMessage) => {
-                          // Ignore errors
-                        }
-                      );
-                    }, 100);
-                  }}
-                  className="w-full bg-[#00F5A0] text-black py-4 rounded-2xl font-black italic active:scale-95"
-                >
-                  START CAMERA
-                </button>
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="bg-black/40 p-4 rounded-xl text-xs break-all text-gray-400 border border-white/5">
-                  <p className="text-[#00F5A0] font-bold mb-2">✅ QR Code Scanned:</p>
-                  {qrData.substring(0, 50)}...
-                </div>
-
-                <input
-                  type="number"
-                  placeholder="Enter Amount to Pay"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-6 py-4 font-bold outline-none text-lg"
-                />
-
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => {
-                      setQrData("");
-                      setAmount("");
-                    }}
-                    className="flex-1 bg-white/5 py-4 rounded-2xl font-black"
-                  >
-                    RESET
-                  </button>
-<button
-  onClick={async () => {
-    if (!amount) {
-      toast.error("Please enter amount");
-      return;
-    }
-    
-    if (amount <= 0) {
-      toast.error("Amount must be greater than 0");
-      return;
-    }
-
-    // Check if user has sufficient balance
-    const inrWallet = wallets.find(w => w.type === "INR");
-    if (inrWallet && inrWallet.balance < Number(amount)) {
-      toast.error(`Insufficient balance! Your INR wallet balance: ₹${inrWallet.balance}`);
-      return;
-    }
-
-    setActionLoading(true);
-    const toastId = toast.loading('Processing payment...');
-    
-    try {
-      console.log("Attempting self-pay with amount:", amount);
-      const res = await selfPay(amount);
-      console.log("Self-pay success:", res);
       
-      // Success toast with cashback info
-      toast.dismiss(toastId);
-      toast.success(
-        <div>
-          <div className="font-bold">Payment Successful! 🎉</div>
-          <div className="text-sm text-[#00F5A0] mt-1">
-            Earned ₹{res.cashbackEarned} cashback (1%)
-          </div>
-        </div>,
-        { duration: 5000 }
-      );
-      
-      // Also show a separate cashback notification
-      toast.success(
-        <div className="flex items-center gap-2">
-          <Zap size={20} className="text-[#00F5A0]" />
-          <div>
-            <div className="font-bold">Cashback Credited!</div>
-            <div className="text-sm">+₹{res.cashbackEarned} to Cashback Wallet</div>
-          </div>
-        </div>,
-        { 
-          duration: 3000,
-          icon: '💰',
-          style: {
-            background: '#00F5A0',
-            color: '#051510',
-          }
-        }
-      );
-      
-      // Reset after successful payment
-      setQrData("");
-      setAmount("");
-      loadAllData(); // Refresh wallets
-    } catch (error) {
-      console.error("Self-pay error:", error);
-      toast.dismiss(toastId);
-      toast.error("Payment failed: " + (error.message || "Insufficient balance"));
-    } finally {
-      setActionLoading(false);
-    }
-  }}
-  disabled={actionLoading}
-  className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black"
->
-  {actionLoading ? (
-    <span className="flex items-center justify-center gap-2">
-      <Loader size={16} className="animate-spin" />
-      PAYING...
-    </span>
-  ) : (
-    "PAY NOW"
-  )}
-</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div> */}
 
       {/* ================= CREATE PAY REQUEST (Image Upload) ================= */}
       <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
@@ -769,11 +570,36 @@ const startScanner = (readerId) => {
         )}
       </div>
     </div>
+     <div>
+      <h2 className="text-lg font-black text-white/70 italic mb-4">
+        Accept Pay Requests
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
+    {scanners
+      .filter((s) => String(s.user?._id) !== String(user._id))
+      .map((s) => (
+        <RequestCard
+          key={s._id}
+          s={s}
+          user={user}
+          loadAllData={loadAllData}
+          setSelectedScanner={setSelectedScanner}
+        />
+      ))}
+
+    {scanners.filter((s) => String(s.user?._id) !== String(user._id))
+      .length === 0 && (
+      <div className="col-span-full text-center py-20 text-gray-600 font-black italic uppercase">
+        No Pay Requests Available
+      </div>
+    )}
+  </div>
+  </div>
   </div>
 )}
 
         {/* Pay Requests: GRID FOR MOBILE */}
-    {activeTab === "PayRequests" && (
+    {/* {activeTab === "PayRequests" && (
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
     {scanners
       .filter((s) => String(s.user?._id) !== String(user._id))
@@ -794,7 +620,7 @@ const startScanner = (readerId) => {
       </div>
     )}
   </div>
-)}
+)} */}
 
 
         {activeTab === "Deposit" && <DepositPage paymentMethods={paymentMethods} selectedMethod={selectedMethod} setSelectedMethod={setSelectedMethod} depositData={depositData} setDepositData={setDepositData} txHash={txHash} setTxHash={setTxHash} setDepositScreenshot={setDepositScreenshot} handleDepositSubmit={handleDepositSubmit} actionLoading={actionLoading} />}

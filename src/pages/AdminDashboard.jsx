@@ -85,7 +85,7 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-between mb-10 px-2">
           <div className="flex items-center gap-2">
             <div className="bg-[#00F5A0] p-1.5 rounded-lg text-[#051510]"><Zap size={20} /></div>
-            <span className="text-2xl font-black italic tracking-tighter">CPay</span>
+            <span className="text-2xl font-black italic tracking-tighter">CpayLink</span>
           </div>
           <button onClick={() => setIsSidebarOpen(false)} className="md:hidden"><X size={24} /></button>
         </div>

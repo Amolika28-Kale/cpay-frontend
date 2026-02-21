@@ -264,7 +264,7 @@ export default function Landing() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-2">
              <div className="bg-white/5 p-1.5 rounded-lg border border-white/10"><Zap size={16} className="text-[#00F5A0]" /></div>
-             <span className="font-bold">CPay</span>
+             <span className="font-bold">CpayLink</span>
           </div>
           <div className="flex gap-8 text-xs text-gray-500 font-bold uppercase tracking-widest">
             <a href="#" className="hover:text-white transition-colors">Terms of Service</a>

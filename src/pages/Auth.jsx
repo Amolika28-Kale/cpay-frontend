@@ -91,7 +91,7 @@ const handleSubmit = async (e) => {
         <div className="bg-[#00F5A0] p-3 rounded-2xl shadow-[0_0_30px_rgba(0,245,160,0.3)] mb-4 transition-transform group-hover:scale-110">
           <Zap size={32} className="text-[#051510] fill-current" />
         </div>
-        <span className="text-3xl font-black tracking-tighter italic">CPAY</span>
+        <span className="text-3xl font-black tracking-tighter italic">CpayLink</span>
       </div>
 
       <div className="w-full max-w-[440px] relative">
