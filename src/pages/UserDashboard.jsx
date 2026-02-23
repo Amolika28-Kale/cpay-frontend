@@ -878,9 +878,10 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
   const [timeLeft, setTimeLeft] = useState(300);
   const [isExpired, setIsExpired] = useState(false);
   
-  // Timer effect for new requests
+  // Timer effect for ALL users - हा बदल केलाय
   useEffect(() => {
-    if (isOwner && s.status === "ACTIVE" && !s.acceptedBy) {
+    // फक्त ACTIVE आणि ACCEPTED न झालेल्या requests साठी timer चालवा
+    if (s.status === "ACTIVE" && !s.acceptedBy) {
       const createdTime = new Date(s.createdAt).getTime();
       const currentTime = new Date().getTime();
       const elapsedSeconds = Math.floor((currentTime - createdTime) / 1000);
@@ -895,6 +896,9 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
             if (prev <= 1) {
               clearInterval(timer);
               setIsExpired(true);
+              
+              // Auto-refresh data when request expires
+              loadAllData();
               return 0;
             }
             return prev - 1;
@@ -903,8 +907,12 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
 
         return () => clearInterval(timer);
       }
+    } else {
+      // जर request accepted असेल किंवा status बदलला असेल तर timer reset करा
+      setTimeLeft(0);
+      setIsExpired(false);
     }
-  }, [s.createdAt, s.status, isOwner, s.acceptedBy]);
+  }, [s.createdAt, s.status, s.acceptedBy, loadAllData]); // isOwner काढून टाकलंय
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -912,30 +920,9 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Function to download QR code
-  const downloadQR = () => {
-    const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
-    
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
-    link.target = '_blank';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success('QR Code Downloaded!', {
-      duration: 5000 ,
-      icon: '📥',
-      style: {
-        background: '#00F5A0',
-        color: '#051510',
-      }
-    });
-  };
-
   // Status display with proper formatting
   const getStatusDisplay = () => {
+    // सगळ्यांसाठी EXPIRED status दाखवा
     if (isExpired && s.status === "ACTIVE" && !s.acceptedBy) {
       return { text: "EXPIRED", color: "bg-red-500/10 text-red-500 border border-red-500/20" };
     }
@@ -948,11 +935,37 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       case "PAYMENT_SUBMITTED":
         return { text: "PROOF SUBMITTED 📸", color: "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20" };
       default:
+        // जर expire झाली असेल तर ACTIVE न दाखवता EXPIRED दाखवा
+        if (isExpired) {
+          return { text: "EXPIRED", color: "bg-red-500/10 text-red-500 border border-red-500/20" };
+        }
         return { text: "ACTIVE", color: "bg-[#00F5A0]/10 text-[#00F5A0] border border-[#00F5A0]/20" };
     }
   };
 
   const statusDisplay = getStatusDisplay();
+
+  // Download QR function
+  const downloadQR = () => {
+    const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
+    
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('QR Code Downloaded!', {
+      duration: 5000,
+      icon: '📥',
+      style: {
+        background: '#00F5A0',
+        color: '#051510',
+      }
+    });
+  };
 
   return (
     <div className="bg-[#0A1F1A] border border-white/10 p-5 rounded-[2rem] relative flex flex-col h-full hover:border-white/20 transition-all">
@@ -963,8 +976,8 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
           {statusDisplay.text}
         </div>
         
-        {/* Timer */}
-        {isOwner && s.status === "ACTIVE" && !s.acceptedBy && !isExpired && (
+        {/* Timer - सगळ्यांना दाखवा, पण फक्त ACTIVE आणि NOT ACCEPTED असताना */}
+        {s.status === "ACTIVE" && !s.acceptedBy && !isExpired && (
           <div className="bg-yellow-500/20 text-yellow-500 text-[8px] font-black px-2 py-1.5 rounded-full flex items-center gap-1 border border-yellow-500/20">
             <Clock size={10} />
             {formatTime(timeLeft)}
@@ -1000,8 +1013,8 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
         Created by: {s.user?.name || `User ${s.user?.mobile?.slice(-4) || s.user?._id?.slice(-6)}`}
       </p>
 
-      {/* Expired Message */}
-      {isOwner && isExpired && s.status === "ACTIVE" && !s.acceptedBy && (
+      {/* Expired Message - सगळ्यांना दाखवा */}
+      {isExpired && s.status === "ACTIVE" && !s.acceptedBy && (
         <div className="mb-4 p-3 bg-red-500/10 rounded-xl border border-red-500/20">
           <p className="text-center text-xs text-red-500 font-bold flex items-center justify-center gap-1">
             <Clock size={14} /> This request has expired
@@ -1060,12 +1073,12 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
                 ⚡ ACCEPT & PAY
               </button>
             )}
-            {s.status === "ACTIVE" && isExpired && (
+            {(s.status !== "ACTIVE" || isExpired) && (
               <button 
                 disabled
                 className="w-full bg-gray-700 text-gray-400 py-3 rounded-xl font-black italic text-sm cursor-not-allowed opacity-50"
               >
-                ⏰ EXPIRED
+                ⏰ {isExpired ? "EXPIRED" : "UNAVAILABLE"}
               </button>
             )}
           </>
@@ -1082,15 +1095,15 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
         )}
 
         {/* Cancel Button for Owner */}
-    {isOwner && s.status === "ACTIVE" && !s.acceptedBy && (
-      <button 
-        onClick={() => handleCancelRequest(s._id)}
-        className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-black text-sm hover:bg-red-500/30 transition-all border border-red-500/20"
-      >
-        ✕ CANCEL REQUEST
-      </button>
-    )}
-   </div>
+        {isOwner && s.status === "ACTIVE" && !s.acceptedBy && (
+          <button 
+            onClick={() => handleCancelRequest(s._id)}
+            className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-black text-sm hover:bg-red-500/30 transition-all border border-red-500/20"
+          >
+            ✕ CANCEL REQUEST
+          </button>
+        )}
+      </div>
     </div>
   );
 };
