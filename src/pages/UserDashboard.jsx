@@ -1770,7 +1770,7 @@ const DepositPage = ({
         setPreviewUrl(null);
       }
       
-      toast.success("Deposit submitted! Auto-verification will complete in 2 minutes.", {
+      toast.success("Deposit submitted! Verification will complete in 2 minutes.", {
         duration: 4000,
         icon: '⏱️',
         style: { background: '#0A1F1A', border: '1px solid #00F5A0/20' }
@@ -1885,7 +1885,7 @@ const DepositPage = ({
                 <Clock size={16} className="text-yellow-500" />
               )}
               <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
-                {timeLeft > 0 ? "AUTO-VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE"}
+                {timeLeft > 0 ? "VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE"}
               </span>
             </div>
             <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
@@ -1907,7 +1907,7 @@ const DepositPage = ({
           
           <p className="text-[10px] text-gray-500 mt-2 text-center">
             {timeLeft > 0 ? (
-              <>⏱️ Auto-verification in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes</>
+              <>⏱️ Verification in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes</>
             ) : (
               <>✅ Verification complete! Your deposit will be credited shortly.</>
             )}
