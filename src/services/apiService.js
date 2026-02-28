@@ -118,13 +118,34 @@ export const getActiveRequests = async () => {
 
 
 /* 3️⃣ ACCEPT REQUEST (User B) */
+// services/apiService.js
+
+/* 3️⃣ ACCEPT REQUEST (User B) */
 export const acceptRequest = async (scannerId) => {
-  const res = await fetch(`${API_BASE}/scanner/accept`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ scannerId }),
-  });
-  return res.json();
+  console.log("Calling acceptRequest API with ID:", scannerId);
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE}/scanner/accept`, {
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ scannerId }),
+    });
+    
+    const data = await response.json();
+    console.log("AcceptRequest response:", data);
+    
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to accept request");
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("AcceptRequest error:", error);
+    throw error;
+  }
 };
 
 
