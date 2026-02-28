@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import {
   LayoutGrid, ArrowRightLeft, Wallet, ScanLine, CheckCircle,
   LogOut, X, Clock, Menu, Loader, Zap, PlusCircle, Camera, UploadCloud, Bell,
-  Users, TrendingUp, Award, Gift, Copy, ChevronDown, ChevronUp, User, Key, AlertCircle
+  Users, TrendingUp, Award, Gift, Copy, ChevronDown, ChevronUp, User, Key, AlertCircle,
+  ArrowRight
 } from "lucide-react";
 
 import {
@@ -20,6 +21,7 @@ import {
 import toast from 'react-hot-toast';
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from 'react-qr-code';
+import API_BASE from "../services/api";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
@@ -77,17 +79,20 @@ export default function UserDashboard() {
   const [acceptTermsAccepted, setAcceptTermsAccepted] = useState(false);
 
   // Daily limit states
-  const [dailyAcceptLimit, setDailyAcceptLimit] = useState(10);
-  const [todayAcceptedTotal, setTodayAcceptedTotal] = useState(0);
-  const [walletActivated, setWalletActivated] = useState(false);
-  const [showActivationModal, setShowActivationModal] = useState(false);
-  const [activationAmount, setActivationAmount] = useState(0);
-  const [activationStatus, setActivationStatus] = useState({
-    activated: false,
-    dailyLimit: 10,
-    todayAccepted: 0,
-    remaining: 10
-  });
+// Daily limit states - आता amount मध्ये
+// Daily limit states
+const [dailyAcceptLimit, setDailyAcceptLimit] = useState(1000);
+const [todayAcceptedTotal, setTodayAcceptedTotal] = useState(0);
+const [walletActivated, setWalletActivated] = useState(false);
+const [showActivationModal, setShowActivationModal] = useState(false);
+const [activationAmount, setActivationAmount] = useState(0);
+const [activationStatus, setActivationStatus] = useState({
+  activated: false,
+  dailyLimit: 1000,
+  todayAccepted: 0,
+  remaining: 1000
+});
+  
 
   const user = JSON.parse(localStorage.getItem("user")) || { 
     userId: "User",
@@ -250,18 +255,18 @@ export default function UserDashboard() {
     calculateTodayAccepted();
   }, [scanners, user._id]);
 
-  // Load activation status
-  const loadActivationStatus = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const status = await getActivationStatus(token);
-      setActivationStatus(status);
-      setWalletActivated(status.activated);
-      setDailyAcceptLimit(status.dailyLimit || 10);
-    } catch (error) {
-      console.error("Error loading activation status:", error);
-    }
-  };
+const loadActivationStatus = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const status = await getActivationStatus(token);
+    setActivationStatus(status);
+    setWalletActivated(status.activated);
+    setDailyAcceptLimit(status.dailyLimit || 1000);
+    setTodayAcceptedTotal(status.todayAccepted || 0);
+  } catch (error) {
+    console.error("Error loading activation status:", error);
+  }
+};
 
   const loadAllData = async () => {
     try {
@@ -335,38 +340,123 @@ export default function UserDashboard() {
     navigate("/auth");
   };
 
-  const handleDepositSubmit = async () => {
-    if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
-      toast.error("Please fill all fields and upload screenshot");
+// Check if deposit completed for activation
+// Check if deposit completed for activation - SIMPLE FIX
+useEffect(() => {
+  const checkActivationDeposit = async () => {
+    const pending = localStorage.getItem("pendingActivation");
+    if (!pending) return;
+    
+    const { dailyLimit, amount, timestamp } = JSON.parse(pending);
+    
+    // Check if deposit was completed in last 10 minutes
+    if (Date.now() - timestamp > 10 * 60 * 1000) {
+      localStorage.removeItem("pendingActivation");
       return;
     }
     
-    setActionLoading(true);
-    const toastId = toast.loading('Submitting deposit...');
+    // ✅ 2 minutes उलटले का तपासा
+    if (Date.now() - timestamp < 2 * 60 * 1000) {
+      console.log("⏳ Waiting for 2 minutes verification...");
+      return; // 2 minutes पूर्ण झाले नाहीत तर return
+    }
     
+    // Check if user has USDT wallet with sufficient balance
+    const usdtWallet = wallets.find(w => w.type === "USDT");
+    if (usdtWallet && usdtWallet.balance >= amount) {
+      try {
+        const token = localStorage.getItem("token");
+        
+        const res = await fetch(`${API_BASE}/scanner/activate-wallet`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ 
+            dailyLimit: dailyLimit,
+            activationAmount: amount
+          })
+        });
+        
+        const data = await res.json();
+        
+        if (data.message) {
+          toast.success(
+            <div className="flex items-center gap-2">
+              <CheckCircle size={20} className="text-[#00F5A0]" />
+              <div>
+                <div className="font-bold">Wallet Activated! 🎉</div>
+                <div className="text-xs">
+                  <span className="text-blue-400">{amount} USDT</span> → 
+                  <span className="text-green-400"> ₹{data.inrAmount}</span>
+                </div>
+                <div className="text-xs text-gray-400">
+                  Daily limit: ₹{dailyLimit}
+                </div>
+              </div>
+            </div>,
+            { duration: 6000 }
+          );
+          
+          setWalletActivated(true);
+          setDailyAcceptLimit(dailyLimit);
+          await loadActivationStatus();
+          await loadAllData();
+          localStorage.removeItem("pendingActivation");
+        }
+      } catch (error) {
+        console.error("Activation failed:", error);
+        toast.error("Failed to activate wallet");
+      }
+    }
+  };
+  
+  checkActivationDeposit();
+}, [wallets]); // फक्त wallets वर अवलंबून
+
+const handleDepositSubmit = async () => {
+  // Current validation
+  if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
+    toast.error("Please fill all fields and upload screenshot");
+    return false;  // ← false return करा
+  }
+  
+  setActionLoading(true);
+  const toastId = toast.loading('Submitting deposit...');
+  
+  try {
     const res = await createDeposit(depositData.amount, txHash, selectedMethod._id, depositScreenshot);
+    
     if (res?._id) {
       toast.dismiss(toastId);
-      toast.success(
-        <div>
-          <div className="font-bold">Deposit Submitted! 📥</div>
-          <div className="text-sm text-[#00F5A0] mt-1">
-            Amount: ₹{depositData.amount}
-          </div>
-        </div>,
-        { duration: 5000 }
-      );
+      toast.success("Deposit Submitted! 📥");
       
+      // Clear form
       setDepositData({ amount: "" }); 
       setTxHash(""); 
       setSelectedMethod(null);
+      setDepositScreenshot(null); // हे महत्वाचे!
+      
+      // Refresh data
       loadAllData();
+      
+      return true;  // ← success झाल्यावर true return करा
+      
     } else {
       toast.dismiss(toastId);
       toast.error("Deposit submission failed");
+      return false;  // ← failure झाल्यावर false return करा
     }
+  } catch (error) {
+    console.error("Deposit error:", error);
+    toast.dismiss(toastId);
+    toast.error(error?.response?.data?.message || "Deposit submission failed");
+    return false;  // ← error झाल्यावर false return करा
+  } finally {
     setActionLoading(false);
-  };
+  }
+};
 
   const handleCreateScanner = async () => {
     if (!uploadAmount || !selectedImage) {
@@ -526,48 +616,54 @@ export default function UserDashboard() {
     }
   };
 
-  const handleActivateWallet = async () => {
-    const inrWallet = wallets.find(w => w.type === "INR");
-    const requiredAmount = dailyAcceptLimit * 0.1; // 10% of daily limit
-    
-    if (!inrWallet || inrWallet.balance < requiredAmount) {
-      toast.error(`Insufficient balance. Need ₹${requiredAmount} to activate`);
-      return;
-    }
-    
-    setActivationAmount(requiredAmount);
-    setShowActivationModal(true);
-  };
+const handleActivateWallet = async () => {
+  // Calculate 10% of daily limit (in USDT)
+  const requiredAmount = dailyAcceptLimit * 0.1;
+  
+  // Show activation confirmation modal
+  setActivationAmount(requiredAmount);
+  setShowActivationModal(true);
+};
 
-  const confirmActivation = async () => {
-    setShowActivationModal(false);
-    const toastId = toast.loading('Activating wallet...');
-    
-    try {
-      const token = localStorage.getItem("token");
-      const res = await activateWallet(token, dailyAcceptLimit);
-      
-      if (res.message) {
-        toast.dismiss(toastId);
-        toast.success(
-          <div>
-            <div className="font-bold">Wallet Activated! 🎉</div>
-            <div className="text-sm">You can now accept pay requests today</div>
-          </div>,
-          { duration: 4000 }
-        );
-        setWalletActivated(true);
-        await loadActivationStatus();
-        await loadAllData();
-      } else {
-        toast.dismiss(toastId);
-        toast.error(res.message || "Failed to activate wallet");
-      }
-    } catch (error) {
-      toast.dismiss(toastId);
-      toast.error("Failed to activate wallet");
+const confirmActivation = async () => {
+  setShowActivationModal(false);
+  
+  // Store activation info in localStorage
+  localStorage.setItem("pendingActivation", JSON.stringify({
+    dailyLimit: dailyAcceptLimit,
+    amount: activationAmount,
+    timestamp: Date.now()
+  }));
+  
+  // Redirect to Deposit tab with pre-filled amount
+  setActiveTab("Deposit");
+  
+  // Set deposit amount to activation amount
+  setDepositData({ 
+    amount: activationAmount.toFixed(2), 
+    network: "TRC20" 
+  });
+  
+  // Auto-select USDT method
+  if (paymentMethods.length > 0) {
+    const usdtMethod = paymentMethods.find(m => m.method?.includes("USDT"));
+    if (usdtMethod) {
+      setSelectedMethod(usdtMethod);
     }
-  };
+  }
+  
+  // Show message to user
+  toast.success(
+    <div className="flex items-center gap-2">
+      <ArrowRight size={20} className="text-[#00F5A0]" />
+      <div>
+        <div className="font-bold">Please Deposit ${activationAmount.toFixed(2)} USDT</div>
+        <div className="text-xs">This will activate your wallet for today</div>
+      </div>
+    </div>,
+    { duration: 6000 }
+  );
+};
 
   const handleConfirmPayment = async () => {
     if (!paymentScreenshot) {
@@ -730,32 +826,32 @@ export default function UserDashboard() {
               </div>
             </div>
 
-            {/* Daily Limit Status */}
-            <div className="bg-[#0A1F1A] border border-white/10 p-4 rounded-2xl">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-gray-400">Today's Accept Limit</span>
-                <span className="text-sm font-bold text-[#00F5A0]">{dailyAcceptLimit} requests</span>
-              </div>
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-xs text-gray-400">Accepted Today</span>
-                <span className="text-sm font-bold text-orange-500">{todayAcceptedTotal} requests</span>
-              </div>
-              
-              {!walletActivated && (
-                <button
-                  onClick={handleActivateWallet}
-                  className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2"
-                >
-                  Activate Wallet (Pay ₹{dailyAcceptLimit * 0.1})
-                </button>
-              )}
-              
-              {walletActivated && (
-                <div className="bg-green-500/10 text-green-500 p-2 rounded-xl text-xs font-bold text-center">
-                  ✓ Wallet Activated • {activationStatus.remaining} remaining today
-                </div>
-              )}
-            </div>
+      {/* Daily Limit Status */}
+<div className="bg-[#0A1F1A] border border-white/10 p-4 rounded-2xl">
+  <div className="flex justify-between items-center mb-2">
+    <span className="text-xs text-gray-400">Today's Accept Limit</span>
+    <span className="text-sm font-bold text-[#00F5A0]">₹{dailyAcceptLimit}</span>
+  </div>
+  <div className="flex justify-between items-center mb-3">
+    <span className="text-xs text-gray-400">Accepted Today</span>
+    <span className="text-sm font-bold text-orange-500">₹{todayAcceptedTotal}</span>
+  </div>
+  
+  {!walletActivated && (
+    <button
+      onClick={handleActivateWallet}
+      className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2"
+    >
+      Activate Wallet (Deposit ₹{(dailyAcceptLimit * 0.1).toFixed(2)} USDT)
+    </button>
+  )}
+  
+  {walletActivated && (
+    <div className="bg-green-500/10 text-green-500 p-2 rounded-xl text-xs font-bold text-center">
+      ✓ Wallet Activated • ₹{dailyAcceptLimit - todayAcceptedTotal} remaining today
+    </div>
+  )}
+</div>
 
             {/* CREATE PAY REQUEST */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1050,55 +1146,65 @@ export default function UserDashboard() {
         </div>
       )}
 
-      {/* Wallet Activation Modal */}
-      {showActivationModal && (
-        <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
-          <div className="bg-[#0A1F1A] p-6 md:p-8 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
-            <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">Activate Wallet</h3>
-            
-            <p className="text-gray-400 mb-4 text-sm">
-              Set your daily accept limit to start accepting pay requests
-            </p>
+   {/* Wallet Activation Modal */}
+{/* Wallet Activation Modal */}
+{showActivationModal && (
+  <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
+    <div className="bg-[#0A1F1A] p-6 md:p-8 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
+      <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">Activate Wallet</h3>
+      
+      <p className="text-gray-400 mb-4 text-sm">
+        Set your daily accept limit to start accepting pay requests
+      </p>
 
-            <div className="mb-6">
-              <label className="text-xs text-gray-500 mb-2 block">Daily Accept Limit</label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={dailyAcceptLimit}
-                onChange={(e) => setDailyAcceptLimit(Number(e.target.value))}
-                className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none"
-              />
-              <p className="text-xs text-gray-500 mt-2">
-                Activation amount: <span className="text-[#00F5A0] font-bold">₹{dailyAcceptLimit * 0.1}</span> (10% of limit)
-              </p>
-            </div>
-            
-            <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl mb-6">
-              <p className="text-yellow-500 text-xs font-bold flex items-center gap-2">
-                <AlertCircle size={14} />
-                This amount will be held as security and returned when you complete accepted requests
-              </p>
-            </div>
-            
-            <div className="flex gap-4">
-              <button 
-                onClick={() => setShowActivationModal(false)} 
-                className="flex-1 bg-white/5 py-4 rounded-2xl font-black hover:bg-white/10 transition-all"
-              >
-                CANCEL
-              </button>
-              <button 
-                onClick={confirmActivation} 
-                className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black hover:bg-[#00d88c] transition-all"
-              >
-                ACTIVATE
-              </button>
-            </div>
-          </div>
+      <div className="mb-6">
+        <label className="text-xs text-gray-500 mb-2 block">Daily Accept Limit (₹)</label>
+        <input
+          type="number"
+          min="100"
+          max="100000"
+          step="100"
+          value={dailyAcceptLimit}
+          onChange={(e) => {
+            const newLimit = Number(e.target.value);
+            setDailyAcceptLimit(newLimit);
+            setActivationAmount(newLimit * 0.1);
+          }}
+          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none"
+        />
+        <p className="text-xs text-gray-500 mt-1">You can accept pay requests up to this amount today</p>
+        
+        <div className="mt-4 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
+          <p className="text-xs text-gray-400">Activation Amount (10% of limit):</p>
+          <p className="text-2xl font-black text-[#00F5A0] mt-1">{activationAmount.toFixed(2)} USDT</p>
+          <p className="text-[10px] text-gray-500 mt-2">Deposit this amount in USDT to activate</p>
         </div>
-      )}
+      </div>
+      
+      <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl mb-6">
+        <p className="text-yellow-500 text-xs font-bold flex items-center gap-2">
+          <AlertCircle size={14} />
+          After successful deposit, your wallet will be activated automatically
+        </p>
+      </div>
+      
+      <div className="flex gap-4">
+        <button 
+          onClick={() => setShowActivationModal(false)} 
+          className="flex-1 bg-white/5 py-4 rounded-2xl font-black hover:bg-white/10 transition-all"
+        >
+          CANCEL
+        </button>
+        <button 
+          onClick={confirmActivation} 
+          className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black hover:bg-[#00d88c] transition-all"
+        >
+          PROCEED TO DEPOSIT
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }
@@ -1183,7 +1289,7 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
 // RequestCard Component - With clickable toast for wallet activation
 const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelRequest, walletActivated, acceptTermsAccepted, onActivateWallet }) => {
   const isOwner = String(s.user?._id) === String(user._id);
-  const [timeLeft, setTimeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(300); // Changed from 300 to 120
   const [isExpired, setIsExpired] = useState(false);
   
   useEffect(() => {
@@ -1191,7 +1297,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       const createdTime = new Date(s.createdAt).getTime();
       const currentTime = new Date().getTime();
       const elapsedSeconds = Math.floor((currentTime - createdTime) / 1000);
-      const remaining = Math.max(0, 300 - elapsedSeconds);
+      const remaining = Math.max(0, 300 - elapsedSeconds); // Changed from 300 to 120
       
       setTimeLeft(remaining);
       setIsExpired(remaining === 0);
@@ -1216,6 +1322,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       setIsExpired(false);
     }
   }, [s.createdAt, s.status, s.acceptedBy, loadAllData]);
+
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -1331,23 +1438,24 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       console.log("Accept result:", result);
       
       // Success toast
-      toast.success(
-        <div className="flex items-center gap-2">
-          <CheckCircle size={20} className="text-[#00F5A0]" />
-          <div>
-            <div className="font-bold">Request Accepted! 🎯</div>
-            <div className="text-xs">You have 5 minutes to complete the payment</div>
-          </div>
-        </div>,
-        { 
-          duration: 5000,
-          style: {
-            background: '#0A1F1A',
-            color: 'white',
-            border: '1px solid #00F5A0/20'
-          }
-        }
-      );
+// Success toast - update message to 2 minutes
+toast.success(
+  <div className="flex items-center gap-2">
+    <CheckCircle size={20} className="text-[#00F5A0]" />
+    <div>
+      <div className="font-bold">Request Accepted! 🎯</div>
+      <div className="text-xs">You have 5 minutes to complete the payment</div>
+    </div>
+  </div>,
+  { 
+    duration: 5000,
+    style: {
+      background: '#0A1F1A',
+      color: 'white',
+      border: '1px solid #00F5A0/20'
+    }
+  }
+);
       
       loadAllData();
     } catch (error) {
@@ -1495,14 +1603,33 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
   );
 };
 
-// DepositPage Component
-const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, depositData, setDepositData, txHash, setTxHash, setDepositScreenshot, handleDepositSubmit, actionLoading }) => {
+// DepositPage Component - FIXED PROGRESS BAR
+const DepositPage = ({ 
+  paymentMethods, 
+  selectedMethod, 
+  setSelectedMethod, 
+  depositData, 
+  setDepositData, 
+  txHash, 
+  setTxHash, 
+  setDepositScreenshot, 
+  handleDepositSubmit, 
+  actionLoading 
+}) => {
   const usdtMethods = paymentMethods.filter(m => m.method?.includes("USDT"));
   
+  // Local state for timer and file upload
   const [showTimer, setShowTimer] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(300);
+  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes = 120 seconds
   const [isVerifying, setIsVerifying] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileName, setSelectedFileName] = useState("");
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [depositSubmitted, setDepositSubmitted] = useState(false);
+  
+  const fileInputRef = useRef(null);
 
+  // Timer effect - counts down from 120 to 0
   useEffect(() => {
     let timerInterval;
     
@@ -1511,7 +1638,7 @@ const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, deposi
         setTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(timerInterval);
-            setShowTimer(false);
+            // Don't hide timer immediately, show completion message
             setIsVerifying(false);
             return 0;
           }
@@ -1522,111 +1649,243 @@ const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, deposi
 
     return () => {
       if (timerInterval) clearInterval(timerInterval);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
-  }, [showTimer, timeLeft]);
+  }, [showTimer]);
 
+  // Separate effect to handle timer when timeLeft changes
+  useEffect(() => {
+    if (timeLeft === 0 && showTimer) {
+      // Timer completed
+      setIsVerifying(false);
+    }
+  }, [timeLeft, showTimer]);
+
+  // Format time as MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSubmit = async () => {
-    await handleDepositSubmit();
-    if (!actionLoading) {
+  // Calculate progress percentage
+  const progressPercentage = ((120 - timeLeft) / 120) * 100;
+
+  // Handle file selection with validation
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    
+    if (!file) {
+      setSelectedFile(null);
+      setSelectedFileName("");
+      setPreviewUrl(null);
+      setDepositScreenshot(null);
+      return;
+    }
+
+    // File size validation (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large! Maximum size is 5MB", {
+        duration: 3000,
+        icon: '⚠️',
+        style: { background: '#0A1F1A', border: '1px solid #ef4444/20' }
+      });
+      e.target.value = "";
+      return;
+    }
+
+    // File type validation
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file (JPEG, PNG, etc.)", {
+        duration: 3000,
+        icon: '📸',
+        style: { background: '#0A1F1A', border: '1px solid #ef4444/20' }
+      });
+      e.target.value = "";
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+
+    setSelectedFile(file);
+    setSelectedFileName(file.name);
+    setPreviewUrl(URL.createObjectURL(file));
+    setDepositScreenshot(file);
+    
+    toast.success(`Selected: ${file.name}`, { 
+      duration: 2000,
+      icon: '✅',
+      style: { background: '#0A1F1A', border: '1px solid #00F5A0/20' }
+    });
+  };
+
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validation checks
+    const errors = [];
+    
+    if (!depositData.amount || Number(depositData.amount) <= 0) {
+      errors.push("Valid amount is required");
+    }
+    
+    if (!selectedMethod) {
+      errors.push("Please select a payment method");
+    }
+    
+    if (!txHash || txHash.trim() === "") {
+      errors.push("Transaction hash is required");
+    }
+    
+    if (!selectedFile) {
+      errors.push("Payment screenshot is required");
+    }
+
+    if (errors.length > 0) {
+      errors.forEach(error => {
+        toast.error(error, {
+          duration: 3000,
+          style: { background: '#0A1F1A', border: '1px solid #ef4444/20' }
+        });
+      });
+      return;
+    }
+
+    const success = await handleDepositSubmit();
+    
+    if (success) {
       setShowTimer(true);
-      setTimeLeft(300);
+      setTimeLeft(120);
       setIsVerifying(true);
+      setDepositSubmitted(true);
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      setSelectedFile(null);
+      setSelectedFileName("");
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+      
+      toast.success("Deposit submitted! Auto-verification will complete in 2 minutes.", {
+        duration: 4000,
+        icon: '⏱️',
+        style: { background: '#0A1F1A', border: '1px solid #00F5A0/20' }
+      });
     }
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
+    <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
       <h2 className="text-xl font-black italic text-[#00F5A0] mb-8 uppercase tracking-widest">Add Funds</h2>
       
+      {/* Payment Methods Selection */}
       <div className="grid grid-cols-1 gap-3 mb-6">
-        {usdtMethods.map(m => (
-          <button 
-            key={m._id} 
-            onClick={() => setSelectedMethod(m)} 
-            className={`w-full p-4 rounded-xl border text-left transition-all ${
-              selectedMethod?._id === m._id 
-                ? "border-[#00F5A0] bg-[#00F5A0]/10" 
-                : "border-white/10 bg-black/20"
-            }`}
-          >
-            <p className="font-bold text-sm">{m.method}</p>
-          </button>
-        ))}
+        {usdtMethods.length > 0 ? (
+          usdtMethods.map(m => (
+            <button 
+              type="button"
+              key={m._id} 
+              onClick={() => setSelectedMethod(m)} 
+              className={`w-full p-4 rounded-xl border text-left transition-all ${
+                selectedMethod?._id === m._id 
+                  ? "border-[#00F5A0] bg-[#00F5A0]/10" 
+                  : "border-white/10 bg-black/20 hover:bg-black/40"
+              }`}
+              disabled={showTimer}
+            >
+              <p className="font-bold text-sm">{m.method}</p>
+              {m.details?.network && (
+                <p className="text-[10px] text-gray-500 mt-1">Network: {m.details.network}</p>
+              )}
+            </button>
+          ))
+        ) : (
+          <div className="p-4 bg-yellow-500/10 rounded-xl text-yellow-500 text-xs text-center">
+            No payment methods available
+          </div>
+        )}
       </div>
 
-      {selectedMethod && (
-        <div className="p-4 bg-white/5 rounded-xl mb-6 text-[11px] font-mono text-gray-400 border border-white/5">
-          <p className="text-[#00F5A0] font-black mb-2 uppercase">Protocol Info:</p>
+      {/* Selected Method Details */}
+      {selectedMethod && selectedMethod.method.includes("USDT") && (
+        <div className="p-4 bg-white/5 rounded-xl mb-6 border border-white/5">
+          <p className="text-[#00F5A0] font-black mb-3 uppercase text-xs">Payment Details:</p>
           
-          {selectedMethod.method.includes("USDT") && (
-            <div className="flex flex-col items-center mb-3">
-              <div className="bg-white p-3 rounded-xl mb-3">
-                <QRCode 
-                  value={selectedMethod.details.address}
-                  size={150}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="H"
-                />
-              </div>
-              
-              <div className="w-full">
-                <p className="text-[#00F5A0] font-bold text-xs mb-1">Address:</p>
-                <div className="flex items-center gap-2">
-                  <p className="break-all text-white/80 text-xs">{selectedMethod.details.address}</p>
-                  <button 
-                    onClick={() => navigator.clipboard.writeText(selectedMethod.details.address)}
-                    className="bg-[#00F5A0]/10 p-2 rounded-lg hover:bg-[#00F5A0]/20 transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#00F5A0]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-              
-              <div className="w-full mt-2">
-                <p className="text-[#00F5A0] font-bold text-xs mb-1">Network:</p>
-                <p className="text-white/80 text-xs">{selectedMethod.details.network}</p>
-              </div>
-              
-              {/* Rate Display */}
-              <div className="w-full mt-4 pt-3 border-t border-white/10">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-gray-400">Conversion Rate:</span>
-                  <span className="text-sm font-bold text-[#00F5A0]">1 USDT = ₹95</span>
-                </div>
-                {depositData.amount && (
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="text-xs text-gray-400">You'll get:</span>
-                    <span className="text-lg font-black text-white">
-                      ₹{(Number(depositData.amount) * 95).toLocaleString()}
-                    </span>
-                  </div>
-                )}
-              </div>
+          {/* QR Code */}
+          <div className="flex justify-center mb-4">
+            <div className="bg-white p-3 rounded-xl">
+              <QRCode 
+                value={selectedMethod.details.address}
+                size={150}
+                bgColor="#ffffff"
+                fgColor="#000000"
+                level="H"
+              />
             </div>
-          )}
+          </div>
+          
+          {/* Address with Copy */}
+          <div className="mb-3">
+            <p className="text-[10px] text-gray-500 mb-1">Address:</p>
+            <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg">
+              <p className="text-xs text-white/80 font-mono break-all flex-1">
+                {selectedMethod.details.address}
+              </p>
+              <button 
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedMethod.details.address);
+                  toast.success("Address copied!", { duration: 2000 });
+                }}
+                className="bg-[#00F5A0]/10 p-2 rounded-lg hover:bg-[#00F5A0]/20 transition-colors flex-shrink-0"
+              >
+                <Copy size={16} className="text-[#00F5A0]" />
+              </button>
+            </div>
+          </div>
+          
+          {/* Network */}
+          <div className="mb-3">
+            <p className="text-[10px] text-gray-500 mb-1">Network:</p>
+            <p className="text-xs text-white/80 bg-black/40 p-2 rounded-lg">
+              {selectedMethod.details.network}
+            </p>
+          </div>
+          
+          {/* Rate Display */}
+          <div className="mt-4 pt-3 border-t border-white/10">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400">Rate:</span>
+              <span className="font-bold text-[#00F5A0]">1 USDT = ₹95</span>
+            </div>
+            {depositData.amount && (
+              <div className="flex justify-between items-center mt-2 text-base">
+                <span className="text-gray-400">You'll get:</span>
+                <span className="font-black text-white">
+                  ₹{(Number(depositData.amount) * 95).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* ⏱️ 2-MINUTE TIMER DISPLAY WITH PROGRESS BAR - FIXED */}
       {showTimer && (
         <div className="mb-6 p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              {isVerifying ? (
+              {isVerifying && timeLeft > 0 ? (
                 <Loader size={16} className="animate-spin text-yellow-500" />
               ) : (
                 <Clock size={16} className="text-yellow-500" />
               )}
               <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
-                {isVerifying ? "VERIFYING YOUR PAYMENT" : "PAYMENT VERIFIED"}
+                {timeLeft > 0 ? "AUTO-VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE"}
               </span>
             </div>
             <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
@@ -1636,46 +1895,121 @@ const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, deposi
             </div>
           </div>
           
-          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+          {/* PROGRESS BAR - Fixed */}
+          <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
             <div 
-              className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000"
-              style={{ width: `${(timeLeft / 300) * 100}%` }}
+              className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000 ease-linear"
+              style={{ 
+                width: `${progressPercentage}%`,
+              }}
             />
           </div>
           
           <p className="text-[10px] text-gray-500 mt-2 text-center">
-            Please wait while we verify your transaction. This may take up to 5 minutes.
+            {timeLeft > 0 ? (
+              <>⏱️ Auto-verification in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes</>
+            ) : (
+              <>✅ Verification complete! Your deposit will be credited shortly.</>
+            )}
+          </p>
+          
+          <p className="text-[8px] text-gray-600 mt-1 text-center">
+            Please wait while we verify your transaction. Your INR will be credited automatically after verification.
           </p>
         </div>
       )}
 
-      <input 
-        type="number" 
-        value={depositData.amount} 
-        onChange={e => setDepositData({ ...depositData, amount: e.target.value })} 
-        placeholder="Amount (USDT)" 
-        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-3 font-bold text-lg outline-none" 
-        disabled={showTimer}
-      />
+      {/* Amount Input */}
+      <div className="mb-3">
+        <label className="text-xs text-gray-500 mb-1 block">Amount (USDT) *</label>
+        <input 
+          type="number" 
+          value={depositData.amount} 
+          onChange={e => setDepositData({ ...depositData, amount: e.target.value })} 
+          placeholder="Enter amount in USDT" 
+          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0] transition-all" 
+          disabled={showTimer}
+          min="1"
+          step="0.01"
+          required
+        />
+      </div>
       
-      <input 
-        type="text" 
-        value={txHash} 
-        onChange={e => setTxHash(e.target.value)} 
-        placeholder="Transaction Hash / TxID" 
-        className="w-full bg-black/40 border border-white/10 rounded-xl p-4 mb-4 font-bold outline-none" 
-        disabled={showTimer}
-      />
+      {/* Transaction Hash Input */}
+      <div className="mb-4">
+        <label className="text-xs text-gray-500 mb-1 block">Transaction Hash / TXID *</label>
+        <input 
+          type="text" 
+          value={txHash} 
+          onChange={e => setTxHash(e.target.value)} 
+          placeholder="Enter transaction hash" 
+          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold outline-none focus:border-[#00F5A0] transition-all" 
+          disabled={showTimer}
+          required
+        />
+      </div>
       
-      <input 
-        type="file" 
-        onChange={e => setDepositScreenshot(e.target.files[0])} 
-        className="w-full mb-6 text-xs text-gray-500" 
-        disabled={showTimer}
-      />
+      {/* File Upload with Preview */}
+      <div className="mb-6">
+        <label className="text-xs text-gray-500 mb-1 block">Payment Screenshot *</label>
+        
+        <input 
+          ref={fileInputRef}
+          type="file" 
+          accept="image/*"
+          onChange={handleFileChange} 
+          className="hidden" 
+          id="screenshot-upload"
+          disabled={showTimer}
+        />
+        
+        <label 
+          htmlFor="screenshot-upload"
+          className={`block border-2 border-dashed rounded-xl py-6 text-center cursor-pointer font-bold text-sm transition-all ${
+            selectedFile 
+              ? "border-[#00F5A0] bg-[#00F5A0]/10" 
+              : "border-white/10 bg-black/40 hover:bg-black/60"
+          }`}
+        >
+          <UploadCloud size={32} className="mx-auto mb-2 text-[#00F5A0]" />
+          {selectedFileName || "Click to upload payment screenshot"}
+          <p className="text-[8px] text-gray-500 mt-1">Max file size: 5MB (JPEG, PNG)</p>
+        </label>
+        
+        {previewUrl && (
+          <div className="mt-3">
+            <div className="relative inline-block">
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="w-32 h-32 object-cover rounded-lg border-2 border-[#00F5A0]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedFile(null);
+                  setSelectedFileName("");
+                  setPreviewUrl(null);
+                  setDepositScreenshot(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-all"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-[#00F5A0] mt-1">
+              {selectedFileName} ({(selectedFile.size / 1024).toFixed(2)} KB)
+            </p>
+          </div>
+        )}
+      </div>
       
+      {/* Submit Button */}
       <button 
-        onClick={handleSubmit} 
+        type="submit"
         className={`w-full py-5 rounded-2xl font-black italic transition-all ${
           showTimer 
             ? "bg-gray-700 text-gray-400 cursor-not-allowed" 
@@ -1691,21 +2025,13 @@ const DepositPage = ({ paymentMethods, selectedMethod, setSelectedMethod, deposi
         ) : showTimer ? (
           <span className="flex items-center justify-center gap-2">
             <Clock size={16} />
-            VERIFICATION IN PROGRESS
+            WAITING FOR VERIFICATION ({formatTime(timeLeft)})
           </span>
         ) : (
           "SUBMIT DEPOSIT"
         )}
       </button>
-
-      {showTimer && timeLeft === 0 && (
-        <div className="mt-4 p-3 bg-green-500/10 rounded-xl border border-green-500/20">
-          <p className="text-center text-xs text-green-500 font-bold">
-            ✓ Verification complete! Your deposit will be credited soon.
-          </p>
-        </div>
-      )}
-    </div>
+    </form>
   );
 };
 
