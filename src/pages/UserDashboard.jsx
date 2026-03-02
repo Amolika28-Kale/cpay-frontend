@@ -237,32 +237,46 @@ const [activationStatus, setActivationStatus] = useState({
     prevTransactionsRef.current = transactions;
   }, [transactions]);
 
-  // Calculate today's accepted total
-  useEffect(() => {
-    const calculateTodayAccepted = () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      const todayAccepted = scanners.filter(s => 
+// Calculate today's accepted total - QUICK FIX
+useEffect(() => {
+  const calculateTodayAccepted = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // ✅ Activation status वरून थेट value घ्या
+    if (activationStatus.todayAccepted > 0) {
+      console.log("📊 Using activation status value:", activationStatus.todayAccepted);
+      setTodayAcceptedTotal(activationStatus.todayAccepted);
+      return;
+    }
+    
+    // नाहीतर scanners वरून calculate करा
+    const todayTotal = scanners
+      .filter(s => 
         s.status === "ACCEPTED" && 
         new Date(s.acceptedAt) >= today &&
         String(s.acceptedBy?._id) === String(user._id)
-      ).length;
-      
-      setTodayAcceptedTotal(todayAccepted);
-    };
+      )
+      .reduce((sum, request) => sum + (request.amount || 0), 0);
     
-    calculateTodayAccepted();
-  }, [scanners, user._id]);
+    console.log("📊 Calculated from scanners:", todayTotal);
+    setTodayAcceptedTotal(todayTotal);
+  };
+  
+  calculateTodayAccepted();
+}, [scanners, user._id, activationStatus.todayAccepted]);
 
 const loadActivationStatus = async () => {
   try {
     const token = localStorage.getItem("token");
     const status = await getActivationStatus(token);
+    console.log("Activation status loaded:", status);
+    
     setActivationStatus(status);
     setWalletActivated(status.activated);
     setDailyAcceptLimit(status.dailyLimit || 1000);
     setTodayAcceptedTotal(status.todayAccepted || 0);
+    
   } catch (error) {
     console.error("Error loading activation status:", error);
   }
@@ -340,8 +354,7 @@ const loadActivationStatus = async () => {
     navigate("/auth");
   };
 
-// Check if deposit completed for activation
-// Check if deposit completed for activation - SIMPLE FIX
+// Check if deposit completed for activation - FIXED WITH PROPER TIMING
 useEffect(() => {
   const checkActivationDeposit = async () => {
     const pending = localStorage.getItem("pendingActivation");
@@ -419,7 +432,7 @@ const handleDepositSubmit = async () => {
   // Current validation
   if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
     toast.error("Please fill all fields and upload screenshot");
-    return false;  // ← false return करा
+    return false;
   }
   
   setActionLoading(true);
@@ -430,29 +443,38 @@ const handleDepositSubmit = async () => {
     
     if (res?._id) {
       toast.dismiss(toastId);
-      toast.success("Deposit Submitted! 📥");
+      toast.success(
+        <div className="flex items-center gap-2">
+          <CheckCircle size={20} className="text-[#00F5A0]" />
+          <div>
+            <div className="font-bold">Deposit Submitted! 📥</div>
+            <div className="text-xs">Your wallet will be activated after 2 minutes verification</div>
+          </div>
+        </div>,
+        { duration: 5000 }
+      );
       
       // Clear form
       setDepositData({ amount: "" }); 
       setTxHash(""); 
       setSelectedMethod(null);
-      setDepositScreenshot(null); // हे महत्वाचे!
+      setDepositScreenshot(null);
       
       // Refresh data
       loadAllData();
       
-      return true;  // ← success झाल्यावर true return करा
+      return true;
       
     } else {
       toast.dismiss(toastId);
       toast.error("Deposit submission failed");
-      return false;  // ← failure झाल्यावर false return करा
+      return false;
     }
   } catch (error) {
     console.error("Deposit error:", error);
     toast.dismiss(toastId);
     toast.error(error?.response?.data?.message || "Deposit submission failed");
-    return false;  // ← error झाल्यावर false return करा
+    return false;
   } finally {
     setActionLoading(false);
   }
@@ -652,13 +674,13 @@ const confirmActivation = async () => {
     }
   }
   
-  // Show message to user
+  // Show message to user with clear timing info
   toast.success(
     <div className="flex items-center gap-2">
       <ArrowRight size={20} className="text-[#00F5A0]" />
       <div>
-        <div className="font-bold">Please Deposit ${activationAmount.toFixed(2)} USDT</div>
-        <div className="text-xs">This will activate your wallet for today</div>
+        <div className="font-bold">Please Deposit {activationAmount.toFixed(2)} USDT</div>
+        <div className="text-xs">After deposit, wallet will activate in 2 minutes ⏱️</div>
       </div>
     </div>,
     { duration: 6000 }
@@ -825,30 +847,78 @@ const confirmActivation = async () => {
                 <h3 className="text-2xl font-black text-orange-500">{myActiveRequestsCount}</h3>
               </div>
             </div>
-
-      {/* Daily Limit Status */}
+{/* Daily Limit Status - FIXED */}
 <div className="bg-[#0A1F1A] border border-white/10 p-4 rounded-2xl">
+  {/* Header - Total Limit */}
   <div className="flex justify-between items-center mb-2">
-    <span className="text-xs text-gray-400">Today's Accept Limit</span>
+    <span className="text-xs text-gray-400">Daily Accept Limit</span>
     <span className="text-sm font-bold text-[#00F5A0]">₹{dailyAcceptLimit}</span>
   </div>
-  <div className="flex justify-between items-center mb-3">
-    <span className="text-xs text-gray-400">Accepted Today</span>
+  
+  {/* Used Today - Amount */}
+  <div className="flex justify-between items-center mb-2">
+    <span className="text-xs text-gray-400">Used Today (Amount)</span>
     <span className="text-sm font-bold text-orange-500">₹{todayAcceptedTotal}</span>
   </div>
   
-  {!walletActivated && (
-    <button
-      onClick={handleActivateWallet}
-      className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2"
-    >
-      Activate Wallet (Deposit ₹{(dailyAcceptLimit * 0.1).toFixed(2)} USDT)
-    </button>
-  )}
+  {/* Remaining Amount */}
+  <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+    <span className="text-xs text-gray-400">Remaining Amount</span>
+    <span className="text-sm font-bold text-[#00F5A0]">
+      ₹{dailyAcceptLimit - todayAcceptedTotal}
+      <span className="text-[10px] text-gray-500 ml-2">
+        ({Math.round(((dailyAcceptLimit - todayAcceptedTotal) / dailyAcceptLimit) * 100)}% left)
+      </span>
+    </span>
+  </div>
   
-  {walletActivated && (
-    <div className="bg-green-500/10 text-green-500 p-2 rounded-xl text-xs font-bold text-center">
-      ✓ Wallet Activated • ₹{dailyAcceptLimit - todayAcceptedTotal} remaining today
+  {/* Progress Bar - Shows usage percentage */}
+  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-4">
+    <div 
+      className="h-full bg-gradient-to-r from-orange-500 to-[#00F5A0] transition-all duration-300"
+      style={{ width: `${(todayAcceptedTotal / dailyAcceptLimit) * 100}%` }}
+    />
+  </div>
+  
+  {/* Activation Info - Conditional Rendering FIXED */}
+  {!walletActivated ? (
+    <>
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+        <span className="text-xs text-gray-400">Activation Required</span>
+        <span className="text-sm font-bold text-blue-400">
+          {(dailyAcceptLimit * 0.1).toFixed(2)} USDT 
+          <span className="text-[10px] text-gray-500 ml-1">(10%)</span>
+        </span>
+      </div>
+      
+      <button
+        onClick={handleActivateWallet}
+        className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2 flex items-center justify-center gap-2"
+      >
+        <span>Activate Wallet</span>
+        <span className="text-xs bg-blue-500/30 px-2 py-1 rounded-full">
+          {(dailyAcceptLimit * 0.1).toFixed(2)} USDT
+        </span>
+      </button>
+    </>
+  ) : (
+    <div className="bg-green-500/10 text-green-500 p-3 rounded-xl text-xs font-bold text-center">
+      <div className="flex items-center justify-center gap-2 mb-1">
+        <CheckCircle size={14} />
+        <span>Wallet Activated</span>
+      </div>
+      <div className="text-[10px] text-gray-400">
+        {dailyAcceptLimit - todayAcceptedTotal > 0 ? (
+          <>
+            ₹{dailyAcceptLimit - todayAcceptedTotal} remaining today
+            {/* <div className="mt-1">
+              You can accept {Math.floor((dailyAcceptLimit - todayAcceptedTotal) / 100)} more payments
+            </div> */}
+          </>
+        ) : (
+          <>Daily limit exhausted - Wait until tomorrow</>
+        )}
+      </div>
     </div>
   )}
 </div>
@@ -857,7 +927,7 @@ const confirmActivation = async () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
                 <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-                  <UploadCloud size={20} /> Create Pay Request
+                  <UploadCloud size={20} /> Pay My Bill
                 </h2>
 
                 {/* Redeem Mode Indicator */}
@@ -1146,7 +1216,6 @@ const confirmActivation = async () => {
         </div>
       )}
 
-   {/* Wallet Activation Modal */}
 {/* Wallet Activation Modal */}
 {showActivationModal && (
   <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
@@ -1174,10 +1243,18 @@ const confirmActivation = async () => {
         />
         <p className="text-xs text-gray-500 mt-1">You can accept pay requests up to this amount today</p>
         
-        <div className="mt-4 p-4 bg-blue-500/10 rounded-xl border border-blue-500/20">
-          <p className="text-xs text-gray-400">Activation Amount (10% of limit):</p>
-          <p className="text-2xl font-black text-[#00F5A0] mt-1">{activationAmount.toFixed(2)} USDT</p>
-          <p className="text-[10px] text-gray-500 mt-2">Deposit this amount in USDT to activate</p>
+        <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
+          <div className="flex justify-between items-center mb-2">
+            <p className="text-xs text-gray-400">Activation Amount:</p>
+            <p className="text-lg font-black text-[#00F5A0]">{activationAmount.toFixed(2)} USDT</p>
+          </div>
+          <div className="flex justify-between items-center text-sm">
+            <p className="text-xs text-gray-400">INR Equivalent:</p>
+            <p className="text-md font-bold text-white">₹{(activationAmount * 95).toFixed(2)}</p>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-2 text-center border-t border-blue-500/20 pt-2">
+            ⚡ 10% of your daily limit (₹{dailyAcceptLimit} × 0.1 = {activationAmount.toFixed(2)} USDT)
+          </p>
         </div>
       </div>
       
