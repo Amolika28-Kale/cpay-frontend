@@ -1138,6 +1138,8 @@ const confirmActivation = async () => {
             setDepositScreenshot={setDepositScreenshot} 
             handleDepositSubmit={handleDepositSubmit} 
             actionLoading={actionLoading} 
+               setActiveTab={setActiveTab}  // ✅ ही लाइन जोडा
+    loadAllData={loadAllData}    // ✅ ही लाइन जोडा
           />
         )}
         
@@ -1681,6 +1683,7 @@ toast.success(
 };
 
 // DepositPage Component - FIXED PROGRESS BAR
+// DepositPage Component - FIXED with auto-redirect after timer
 const DepositPage = ({ 
   paymentMethods, 
   selectedMethod, 
@@ -1691,7 +1694,9 @@ const DepositPage = ({
   setTxHash, 
   setDepositScreenshot, 
   handleDepositSubmit, 
-  actionLoading 
+  actionLoading,
+  setActiveTab, // नवीन prop
+  loadAllData   // नवीन prop
 }) => {
   const usdtMethods = paymentMethods.filter(m => m.method?.includes("USDT"));
   
@@ -1703,6 +1708,7 @@ const DepositPage = ({
   const [selectedFileName, setSelectedFileName] = useState("");
   const [previewUrl, setPreviewUrl] = useState(null);
   const [depositSubmitted, setDepositSubmitted] = useState(false);
+  const [redirectTimer, setRedirectTimer] = useState(null);
   
   const fileInputRef = useRef(null);
 
@@ -1715,8 +1721,36 @@ const DepositPage = ({
         setTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(timerInterval);
-            // Don't hide timer immediately, show completion message
             setIsVerifying(false);
+            
+            // ✅ Timer complete - Set redirect timer
+            const redirect = setTimeout(() => {
+              setActiveTab("Overview"); // Go to Overview
+              setShowTimer(false); // Hide timer
+              loadAllData(); // Refresh data
+              
+              // Show success message
+              toast.success(
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={20} className="text-[#00F5A0]" />
+                  <div>
+                    <div className="font-bold">Deposit Successful! 🎉</div>
+                    <div className="text-xs">Your wallet has been activated</div>
+                  </div>
+                </div>,
+                { 
+                  duration: 5000,
+                  style: {
+                    background: '#0A1F1A',
+                    color: 'white',
+                    border: '1px solid #00F5A0/20'
+                  }
+                }
+              );
+            }, 2000); // 2 seconds delay before redirect
+            
+            setRedirectTimer(redirect);
+            
             return 0;
           }
           return prev - 1;
@@ -1726,17 +1760,10 @@ const DepositPage = ({
 
     return () => {
       if (timerInterval) clearInterval(timerInterval);
+      if (redirectTimer) clearTimeout(redirectTimer);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
-  }, [showTimer]);
-
-  // Separate effect to handle timer when timeLeft changes
-  useEffect(() => {
-    if (timeLeft === 0 && showTimer) {
-      // Timer completed
-      setIsVerifying(false);
-    }
-  }, [timeLeft, showTimer]);
+  }, [showTimer, setActiveTab, loadAllData]);
 
   // Format time as MM:SS
   const formatTime = (seconds) => {
@@ -1951,7 +1978,7 @@ const DepositPage = ({
         </div>
       )}
 
-      {/* ⏱️ 2-MINUTE TIMER DISPLAY WITH PROGRESS BAR - FIXED */}
+      {/* ⏱️ 2-MINUTE TIMER DISPLAY WITH PROGRESS BAR */}
       {showTimer && (
         <div className="mb-6 p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20">
           <div className="flex items-center justify-between mb-2">
@@ -1959,10 +1986,10 @@ const DepositPage = ({
               {isVerifying && timeLeft > 0 ? (
                 <Loader size={16} className="animate-spin text-yellow-500" />
               ) : (
-                <Clock size={16} className="text-yellow-500" />
+                <CheckCircle size={16} className="text-green-500" />
               )}
               <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
-                {timeLeft > 0 ? "VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE"}
+                {timeLeft > 0 ? "VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE ✓"}
               </span>
             </div>
             <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
@@ -1972,10 +1999,10 @@ const DepositPage = ({
             </div>
           </div>
           
-          {/* PROGRESS BAR - Fixed */}
+          {/* PROGRESS BAR */}
           <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
             <div 
-              className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000 ease-linear"
+              className="h-full bg-gradient-to-r from-yellow-500 to-green-500 transition-all duration-1000 ease-linear"
               style={{ 
                 width: `${progressPercentage}%`,
               }}
@@ -1986,13 +2013,17 @@ const DepositPage = ({
             {timeLeft > 0 ? (
               <>⏱️ Verification in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes</>
             ) : (
-              <>✅ Verification complete! Your deposit will be credited shortly.</>
+              <span className="text-green-500 font-bold">
+                ✅ Verification complete! Redirecting to Overview...
+              </span>
             )}
           </p>
           
-          <p className="text-[8px] text-gray-600 mt-1 text-center">
-            Please wait while we verify your transaction. Your INR will be credited automatically after verification.
-          </p>
+          {timeLeft === 0 && (
+            <p className="text-[10px] text-green-500 mt-1 text-center animate-pulse">
+              Your wallet has been activated! You can now accept payments.
+            </p>
+          )}
         </div>
       )}
 
@@ -2102,7 +2133,7 @@ const DepositPage = ({
         ) : showTimer ? (
           <span className="flex items-center justify-center gap-2">
             <Clock size={16} />
-            WAITING FOR VERIFICATION ({formatTime(timeLeft)})
+            {timeLeft > 0 ? `WAITING (${formatTime(timeLeft)})` : "COMPLETED ✓"}
           </span>
         ) : (
           "SUBMIT DEPOSIT"
