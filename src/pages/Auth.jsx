@@ -335,13 +335,13 @@ const handleSubmit = async (e) => {
   setError("");
   setLoading(true);
 
-  console.log("📝 Form submitted:", { 
-    isLogin, 
-    formData: { 
-      userId: formData.userId, 
-      pin: formData.pin ? "******" : null 
-    } 
-  });
+  // console.log("📝 Form submitted:", { 
+  //   isLogin, 
+  //   formData: { 
+  //     userId: formData.userId, 
+  //     pin: formData.pin ? "******" : null 
+  //   } 
+  // });
 
   if (!isLogin) {
     // Registration validation
@@ -374,12 +374,12 @@ const handleSubmit = async (e) => {
     
     if (isLogin) {
       // Try user login first
-      console.log("🔐 Attempting user login...");
+      // console.log("🔐 Attempting user login...");
       response = await userLogin(formData.userId, formData.pin);
       
       // If user login fails, try admin login
       if (!response.success) {
-        console.log("🔐 User login failed, trying admin login...");
+        // console.log("🔐 User login failed, trying admin login...");
         const adminResponse = await adminLogin(formData.userId, formData.pin);
         if (adminResponse.success) {
           response = adminResponse;
@@ -387,7 +387,7 @@ const handleSubmit = async (e) => {
       }
     } else {
       // Registration
-      console.log("📝 Attempting registration...");
+      // console.log("📝 Attempting registration...");
       response = await register({
         userId: generatedUserId,
         pin: formData.pin,
@@ -395,7 +395,7 @@ const handleSubmit = async (e) => {
       });
     }
 
-    console.log("📥 Final response:", response);
+    // console.log("📥 Final response:", response);
 
     if (response.success) {
       // Handle both response formats
@@ -496,13 +496,6 @@ const handleSubmit = async (e) => {
                           ) : (
                             <Copy size={20} className="text-[#00F5A0]" />
                           )}
-                        </button>
-                        <button
-                          onClick={handleGenerateNewId}
-                          className="bg-blue-500/10 p-3 rounded-lg hover:bg-blue-500/20 transition-all"
-                          title="Generate new ID"
-                        >
-                          <RefreshCw size={20} className="text-blue-400" />
                         </button>
                       </>
                     )}
@@ -613,7 +606,7 @@ const handleSubmit = async (e) => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-500 ml-2">Referral Code (Optional)</label>
+                    <label className="text-xs text-gray-500 ml-2">Referral Code</label>
                     <div className="relative group">
                       <input
                         type="text"

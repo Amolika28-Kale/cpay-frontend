@@ -41,3 +41,32 @@ export const updateExchangeRate = async (rate) => {
   });
   return res.json();
 };
+
+// Get complete system stats
+export const getSystemStats = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API}/admin/stats`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching system stats:", error);
+    return null;
+  }
+};
+
+// Get single user details
+export const getUserDetails = async (userId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API}/admin/users/${userId}`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching user details:", error);
+    return null;
+  }
+};
+

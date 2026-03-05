@@ -16,7 +16,8 @@ import {
   getReferralStats, 
   getTeamCashbackSummary, 
   activateWallet, 
-  getActivationStatus 
+  getActivationStatus, 
+  getTodayTeamStats
 } from "../services/authService";
 import toast from 'react-hot-toast';
 import { Html5Qrcode } from "html5-qrcode";
@@ -25,14 +26,40 @@ import API_BASE from "../services/api";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
-  const [referralData, setReferralData] = useState({
-    referralCode: "",
-    totalReferrals: 0,
-    referralEarnings: { total: 0, level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-    cashbackBalance: 0,
-    referralTree: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-    earningsByLevel: { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, total: 0 }
-  });
+
+    const user = JSON.parse(localStorage.getItem("user")) || { 
+    userId: "User",
+    _id: ""
+  };
+
+// Referral data state - Level 21 पर्यंत
+const [referralData, setReferralData] = useState({
+  referralCode: "",
+  totalReferrals: 0,
+  referralEarnings: { 
+    total: 0, 
+    level1: 0, level2: 0, level3: 0, level4: 0, level5: 0,
+    level6: 0, level7: 0, level8: 0, level9: 0, level10: 0,
+    level11: 0, level12: 0, level13: 0, level14: 0, level15: 0,
+    level16: 0, level17: 0, level18: 0, level19: 0, level20: 0,
+    level21: 0
+  },
+  cashbackBalance: 0,
+  referralTree: { 
+    level1: 0, level2: 0, level3: 0, level4: 0, level5: 0,
+    level6: 0, level7: 0, level8: 0, level9: 0, level10: 0,
+    level11: 0, level12: 0, level13: 0, level14: 0, level15: 0,
+    level16: 0, level17: 0, level18: 0, level19: 0, level20: 0,
+    level21: 0
+  },
+  earningsByLevel: { 
+    level1: 0, level2: 0, level3: 0, level4: 0, level5: 0,
+    level6: 0, level7: 0, level8: 0, level9: 0, level10: 0,
+    level11: 0, level12: 0, level13: 0, level14: 0, level15: 0,
+    level16: 0, level17: 0, level18: 0, level19: 0, level20: 0,
+    level21: 0, total: 0
+  }
+});
 
   const [teamStats, setTeamStats] = useState(null);
   const [activeTab, setActiveTab] = useState("Overview");
@@ -78,10 +105,9 @@ export default function UserDashboard() {
   const [createTermsAccepted, setCreateTermsAccepted] = useState(false);
   const [acceptTermsAccepted, setAcceptTermsAccepted] = useState(false);
 
-  // Daily limit states
-// Daily limit states - आता amount मध्ये
 // Daily limit states
-const [dailyAcceptLimit, setDailyAcceptLimit] = useState(1000);
+const [dailyAcceptLimit, setDailyAcceptLimit] = useState(""); // ✅ Actual limit (used after confirmation)
+const [localInputLimit, setLocalInputLimit] = useState(""); // ✅ Local input for modal
 const [todayAcceptedTotal, setTodayAcceptedTotal] = useState(0);
 const [walletActivated, setWalletActivated] = useState(false);
 const [showActivationModal, setShowActivationModal] = useState(false);
@@ -94,10 +120,7 @@ const [activationStatus, setActivationStatus] = useState({
 });
   
 
-  const user = JSON.parse(localStorage.getItem("user")) || { 
-    userId: "User",
-    _id: ""
-  };
+
   
   // Calculate counts
   const activeRequestsCount = scanners.filter(s => s.status === "ACTIVE" && String(s.user?._id) !== String(user._id)).length;
@@ -245,7 +268,7 @@ useEffect(() => {
     
     // ✅ Activation status वरून थेट value घ्या
     if (activationStatus.todayAccepted > 0) {
-      console.log("📊 Using activation status value:", activationStatus.todayAccepted);
+      // console.log("📊 Using activation status value:", activationStatus.todayAccepted);
       setTodayAcceptedTotal(activationStatus.todayAccepted);
       return;
     }
@@ -259,7 +282,7 @@ useEffect(() => {
       )
       .reduce((sum, request) => sum + (request.amount || 0), 0);
     
-    console.log("📊 Calculated from scanners:", todayTotal);
+    // console.log("📊 Calculated from scanners:", todayTotal);
     setTodayAcceptedTotal(todayTotal);
   };
   
@@ -270,11 +293,14 @@ const loadActivationStatus = async () => {
   try {
     const token = localStorage.getItem("token");
     const status = await getActivationStatus(token);
-    console.log("Activation status loaded:", status);
+    // console.log("Activation status loaded:", status);
     
     setActivationStatus(status);
     setWalletActivated(status.activated);
-    setDailyAcceptLimit(status.dailyLimit || 1000);
+    
+    // ✅ महत्वाचं: dailyLimit असेल तरच set करा, नाहीतर empty string
+    setDailyAcceptLimit(status.dailyLimit && status.activated ? status.dailyLimit : "");
+    
     setTodayAcceptedTotal(status.todayAccepted || 0);
     
   } catch (error) {
@@ -370,12 +396,20 @@ useEffect(() => {
     
     // ✅ 2 minutes उलटले का तपासा
     if (Date.now() - timestamp < 2 * 60 * 1000) {
-      console.log("⏳ Waiting for 2 minutes verification...");
-      return; // 2 minutes पूर्ण झाले नाहीत तर return
+      // console.log("⏳ Waiting for 2 minutes verification...");
+      return;
     }
     
     // Check if user has USDT wallet with sufficient balance
     const usdtWallet = wallets.find(w => w.type === "USDT");
+    
+    // ✅ Check if already activated
+    if (walletActivated) {
+      // console.log("✅ Wallet already activated, clearing pending...");
+      localStorage.removeItem("pendingActivation");
+      return;
+    }
+    
     if (usdtWallet && usdtWallet.balance >= amount) {
       try {
         const token = localStorage.getItem("token");
@@ -394,7 +428,7 @@ useEffect(() => {
         
         const data = await res.json();
         
-        if (data.message) {
+        if (res.ok && data.message) {
           toast.success(
             <div className="flex items-center gap-2">
               <CheckCircle size={20} className="text-[#00F5A0]" />
@@ -417,6 +451,17 @@ useEffect(() => {
           await loadActivationStatus();
           await loadAllData();
           localStorage.removeItem("pendingActivation");
+        } else {
+          // Handle error
+          console.error("Activation failed:", data);
+          if (data.message === "Wallet already activated") {
+            setWalletActivated(true);
+            setDailyAcceptLimit(data.dailyLimit || dailyLimit);
+            localStorage.removeItem("pendingActivation");
+            toast.success("Wallet already activated!");
+          } else {
+            toast.error(data.message || "Failed to activate wallet");
+          }
         }
       } catch (error) {
         console.error("Activation failed:", error);
@@ -426,8 +471,23 @@ useEffect(() => {
   };
   
   checkActivationDeposit();
-}, [wallets]); // फक्त wallets वर अवलंबून
+}, [wallets, walletActivated]); // ✅ walletActivated पण dependency मध्ये घ्या
+// ✅ Activation amount calculate करा (10% of daily limit in INR, then convert to USDT)
+const calculateActivationAmount = (limit) => {
+  // 10% of daily limit in INR
+  const inrAmount = limit * 0.1;
+  
+  // Convert to USDT (1 USDT = ₹95)
+  const usdtAmount = inrAmount / 95;
+  
+  // Return with 2 decimal places
+  return Number(usdtAmount.toFixed(2));
+};
 
+// Example:
+// dailyLimit = 1000 → inrAmount = 100 → usdtAmount = 100/95 = 1.05 USDT
+// dailyLimit = 2000 → inrAmount = 200 → usdtAmount = 200/95 = 2.11 USDT
+// dailyLimit = 5000 → inrAmount = 500 → usdtAmount = 500/95 = 5.26 USDT
 const handleDepositSubmit = async () => {
   // Current validation
   if (!depositData.amount || !selectedMethod || !txHash || !depositScreenshot) {
@@ -639,21 +699,21 @@ const handleDepositSubmit = async () => {
   };
 
 const handleActivateWallet = async () => {
-  // Calculate 10% of daily limit (in USDT)
-  const requiredAmount = dailyAcceptLimit * 0.1;
-  
-  // Show activation confirmation modal
-  setActivationAmount(requiredAmount);
+  // Reset local input when opening modal
+  setLocalInputLimit("");
   setShowActivationModal(true);
 };
 
 const confirmActivation = async () => {
   setShowActivationModal(false);
   
-  // Store activation info in localStorage
+  // Calculate activation amount based on localInputLimit
+  const requiredAmount = calculateActivationAmount(localInputLimit);
+  
+  // Store activation info in localStorage using localInputLimit
   localStorage.setItem("pendingActivation", JSON.stringify({
-    dailyLimit: dailyAcceptLimit,
-    amount: activationAmount,
+    dailyLimit: localInputLimit,
+    amount: requiredAmount,
     timestamp: Date.now()
   }));
   
@@ -662,29 +722,25 @@ const confirmActivation = async () => {
   
   // Set deposit amount to activation amount
   setDepositData({ 
-    amount: activationAmount.toFixed(2), 
+    amount: requiredAmount.toFixed(2), 
     network: "TRC20" 
   });
   
-  // Auto-select USDT method
-  if (paymentMethods.length > 0) {
-    const usdtMethod = paymentMethods.find(m => m.method?.includes("USDT"));
-    if (usdtMethod) {
-      setSelectedMethod(usdtMethod);
-    }
-  }
-  
-  // Show message to user with clear timing info
+  // Show message to user
   toast.success(
     <div className="flex items-center gap-2">
       <ArrowRight size={20} className="text-[#00F5A0]" />
       <div>
-        <div className="font-bold">Please Deposit {activationAmount.toFixed(2)} USDT</div>
-        <div className="text-xs">After deposit, wallet will activate in 2 minutes ⏱️</div>
+        <div className="font-bold">Please Deposit {requiredAmount} USDT</div>
+        <div className="text-xs">For ₹{localInputLimit.toLocaleString()} daily limit</div>
+        <div className="text-xs text-gray-400 mt-1">After deposit, wallet will activate in 2 minutes ⏱️</div>
       </div>
     </div>,
     { duration: 6000 }
   );
+  
+  // Reset local input
+  setLocalInputLimit("");
 };
 
   const handleConfirmPayment = async () => {
@@ -732,8 +788,7 @@ const confirmActivation = async () => {
       {/* MOBILE HEADER */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1F1A] border-b border-white/5 sticky top-0 z-[100]">
         <div className="flex items-center gap-2">
-          <Zap size={24} className="text-[#00F5A0]" />
-          <span className="font-bold text-xl italic">CpayLink</span>
+          <Zap size={24} className="text-[#00F5A0]" /><span className="font-bold text-xl italic">CpayLink</span>
         </div>
         <button onClick={() => setIsSidebarOpen(true)} className="p-2 bg-white/5 rounded-lg relative">
           <Menu className="text-[#00F5A0]" />
@@ -847,58 +902,62 @@ const confirmActivation = async () => {
                 <h3 className="text-2xl font-black text-orange-500">{myActiveRequestsCount}</h3>
               </div>
             </div>
-{/* Daily Limit Status - FIXED */}
+{/* Daily Limit Status */}
 <div className="bg-[#0A1F1A] border border-white/10 p-4 rounded-2xl">
   {/* Header - Total Limit */}
   <div className="flex justify-between items-center mb-2">
     <span className="text-xs text-gray-400">Daily Accept Limit</span>
-    <span className="text-sm font-bold text-[#00F5A0]">₹{dailyAcceptLimit}</span>
+    <span className="text-sm font-bold text-[#00F5A0]">
+      {dailyAcceptLimit ? `₹${dailyAcceptLimit.toLocaleString()}` : "Not set"}
+    </span>
   </div>
   
   {/* Used Today - Amount */}
   <div className="flex justify-between items-center mb-2">
     <span className="text-xs text-gray-400">Used Today (Amount)</span>
-    <span className="text-sm font-bold text-orange-500">₹{todayAcceptedTotal}</span>
+    <span className="text-sm font-bold text-orange-500">₹{todayAcceptedTotal.toLocaleString()}</span>
   </div>
   
-  {/* Remaining Amount */}
-  <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
-    <span className="text-xs text-gray-400">Remaining Amount</span>
-    <span className="text-sm font-bold text-[#00F5A0]">
-      ₹{dailyAcceptLimit - todayAcceptedTotal}
-      <span className="text-[10px] text-gray-500 ml-2">
-        ({Math.round(((dailyAcceptLimit - todayAcceptedTotal) / dailyAcceptLimit) * 100)}% left)
+  {/* Remaining Amount - फक्त dailyAcceptLimit असेल तरच दाखवा */}
+  {dailyAcceptLimit && (
+    <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+      <span className="text-xs text-gray-400">Remaining Amount</span>
+      <span className="text-sm font-bold text-[#00F5A0]">
+        ₹{(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()}
+        {dailyAcceptLimit > 0 && (
+          <span className="text-[10px] text-gray-500 ml-2">
+            ({Math.round(((dailyAcceptLimit - todayAcceptedTotal) / dailyAcceptLimit) * 100)}% left)
+          </span>
+        )}
       </span>
-    </span>
-  </div>
+    </div>
+  )}
   
-  {/* Progress Bar - Shows usage percentage */}
-  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-4">
-    <div 
-      className="h-full bg-gradient-to-r from-orange-500 to-[#00F5A0] transition-all duration-300"
-      style={{ width: `${(todayAcceptedTotal / dailyAcceptLimit) * 100}%` }}
-    />
-  </div>
+  {/* Progress Bar - फक्त dailyAcceptLimit असेल तरच दाखवा */}
+  {dailyAcceptLimit && dailyAcceptLimit > 0 && (
+    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-4">
+      <div 
+        className="h-full bg-gradient-to-r from-orange-500 to-[#00F5A0] transition-all duration-300"
+        style={{ width: `${Math.min((todayAcceptedTotal / dailyAcceptLimit) * 100, 100)}%` }}
+      />
+    </div>
+  )}
   
-  {/* Activation Info - Conditional Rendering FIXED */}
+  {/* Activation Info */}
   {!walletActivated ? (
     <>
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
-        <span className="text-xs text-gray-400">Activation Required</span>
+        <span className="text-xs text-gray-400">Activation Required:</span>
         <span className="text-sm font-bold text-blue-400">
-          {(dailyAcceptLimit * 0.1).toFixed(2)} USDT 
-          <span className="text-[10px] text-gray-500 ml-1">(10%)</span>
+          Set your daily limit to activate
         </span>
       </div>
       
       <button
         onClick={handleActivateWallet}
-        className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2 flex items-center justify-center gap-2"
+        className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2"
       >
-        <span>Activate Wallet</span>
-        <span className="text-xs bg-blue-500/30 px-2 py-1 rounded-full">
-          {(dailyAcceptLimit * 0.1).toFixed(2)} USDT
-        </span>
+        Activate Wallet
       </button>
     </>
   ) : (
@@ -908,13 +967,8 @@ const confirmActivation = async () => {
         <span>Wallet Activated</span>
       </div>
       <div className="text-[10px] text-gray-400">
-        {dailyAcceptLimit - todayAcceptedTotal > 0 ? (
-          <>
-            ₹{dailyAcceptLimit - todayAcceptedTotal} remaining today
-            {/* <div className="mt-1">
-              You can accept {Math.floor((dailyAcceptLimit - todayAcceptedTotal) / 100)} more payments
-            </div> */}
-          </>
+        {dailyAcceptLimit && dailyAcceptLimit - todayAcceptedTotal > 0 ? (
+          <>₹{(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()} remaining today</>
         ) : (
           <>Daily limit exhausted - Wait until tomorrow</>
         )}
@@ -1023,7 +1077,7 @@ const confirmActivation = async () => {
                       UPLOADING...
                     </span>
                   ) : (
-                    "POST TO PAY REQUESTS"
+                    "POST TO BILL PAYMENTS"
                   )}
                 </button>
               </div>
@@ -1032,7 +1086,7 @@ const confirmActivation = async () => {
             {/* MY REQUESTS SECTION */}
             <div>
               <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
-                My Pay Requests
+                My Bill Payments
                 {myActiveRequestsCount > 0 && (
                   <span className="bg-orange-500/10 text-orange-500 text-[10px] px-2 py-1 rounded-full">
                     {myActiveRequestsCount} active
@@ -1057,7 +1111,7 @@ const confirmActivation = async () => {
                 {scanners.filter((s) => String(s.user?._id) === String(user._id))
                   .length === 0 && (
                   <div className="col-span-full text-center py-10 text-gray-600 font-black italic">
-                    No Requests Created
+                    No Bill Payments Created
                   </div>
                 )}
               </div>
@@ -1066,7 +1120,7 @@ const confirmActivation = async () => {
             {/* ACCEPT PAY REQUESTS SECTION */}
             <div>
               <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
-                Accept Pay Requests
+                Accept Bill Payments
                 {activeRequestsCount > 0 && (
                   <span className="bg-[#00F5A0]/10 text-[#00F5A0] text-[10px] px-2 py-1 rounded-full animate-pulse">
                     {activeRequestsCount} available
@@ -1118,7 +1172,7 @@ const confirmActivation = async () => {
                 {scanners.filter((s) => String(s.user?._id) !== String(user._id))
                   .length === 0 && (
                   <div className="col-span-full text-center py-20 text-gray-600 font-black italic uppercase">
-                    No Pay Requests Available
+                    No Bill Payment Available
                   </div>
                 )}
               </div>
@@ -1225,58 +1279,99 @@ const confirmActivation = async () => {
       <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">Activate Wallet</h3>
       
       <p className="text-gray-400 mb-4 text-sm">
-        Set your daily accept limit to start accepting pay requests
+        Enter your daily accept limit to start accepting pay requests
       </p>
 
       <div className="mb-6">
         <label className="text-xs text-gray-500 mb-2 block">Daily Accept Limit (₹)</label>
         <input
           type="number"
-          min="100"
-          max="100000"
-          step="100"
-          value={dailyAcceptLimit}
+          min="1"
+          value={localInputLimit}
           onChange={(e) => {
-            const newLimit = Number(e.target.value);
-            setDailyAcceptLimit(newLimit);
-            setActivationAmount(newLimit * 0.1);
+            const newLimit = e.target.value === "" ? "" : Number(e.target.value);
+            setLocalInputLimit(newLimit);
           }}
-          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none"
+          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0]"
+          placeholder="Enter daily limit (e.g. 5000)"
         />
-        <p className="text-xs text-gray-500 mt-1">You can accept pay requests up to this amount today</p>
+        <p className="text-xs text-gray-500 mt-1">
+          Enter any amount you want as your daily limit
+        </p>
         
-        <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-xs text-gray-400">Activation Amount:</p>
-            <p className="text-lg font-black text-[#00F5A0]">{activationAmount.toFixed(2)} USDT</p>
+        {localInputLimit && localInputLimit > 0 ? (
+          <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
+            {/* Daily Limit Display */}
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs text-gray-400">Your Daily Limit:</p>
+              <p className="text-sm font-bold text-white">₹{localInputLimit.toLocaleString()}</p>
+            </div>
+            
+          {/* 10% in INR - ₹ symbol */}
+<div className="flex justify-between items-center mb-2">
+  <p className="text-xs text-gray-400">10% in INR:</p>
+  <p className="text-sm font-bold text-orange-400">
+    ₹{(localInputLimit * 0.1).toFixed(2)}
+  </p>
+</div>
+            
+            {/* Exchange Rate */}
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs text-gray-400">Exchange Rate:</p>
+              <p className="text-sm font-bold text-[#00F5A0]">1 USDT = ₹95</p>
+            </div>
+            
+            {/* Activation Amount in USDT - $ symbol */}
+<div className="flex justify-between items-center pt-2 border-t border-blue-500/20">
+  <p className="text-xs text-gray-400">Activation Amount:</p>
+  <p className="text-lg font-black text-[#00F5A0]">
+    ${calculateActivationAmount(localInputLimit)} USDT
+  </p>
+</div>
+            
+            {/* Calculation Explanation */}
+            <p className="text-[10px] text-gray-500 mt-2 text-center bg-black/20 p-2 rounded-lg">
+              ⚡ {(localInputLimit * 0.1).toFixed(2)} INR ÷ 95 = {calculateActivationAmount(localInputLimit)} USDT
+            </p>
           </div>
-          <div className="flex justify-between items-center text-sm">
-            <p className="text-xs text-gray-400">INR Equivalent:</p>
-            <p className="text-md font-bold text-white">₹{(activationAmount * 95).toFixed(2)}</p>
+        ) : (
+          <div className="mt-4 p-4 bg-gray-500/10 rounded-xl border border-gray-500/20">
+            <p className="text-xs text-gray-400 text-center">
+              Enter your daily limit to see activation amount
+            </p>
           </div>
-          <p className="text-[10px] text-gray-500 mt-2 text-center border-t border-blue-500/20 pt-2">
-            ⚡ 10% of your daily limit (₹{dailyAcceptLimit} × 0.1 = {activationAmount.toFixed(2)} USDT)
-          </p>
-        </div>
+        )}
       </div>
       
       <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl mb-6">
         <p className="text-yellow-500 text-xs font-bold flex items-center gap-2">
           <AlertCircle size={14} />
-          After successful deposit, your wallet will be activated automatically
+          After successful deposit, your wallet will be activated automatically in 2 minutes
         </p>
       </div>
       
       <div className="flex gap-4">
         <button 
-          onClick={() => setShowActivationModal(false)} 
+          onClick={() => {
+            setShowActivationModal(false);
+            setLocalInputLimit(""); // Reset local input
+          }} 
           className="flex-1 bg-white/5 py-4 rounded-2xl font-black hover:bg-white/10 transition-all"
         >
           CANCEL
         </button>
         <button 
-          onClick={confirmActivation} 
-          className="flex-1 bg-[#00F5A0] text-black py-4 rounded-2xl font-black hover:bg-[#00d88c] transition-all"
+          onClick={() => {
+            // Set the actual dailyAcceptLimit from localInputLimit
+            setDailyAcceptLimit(localInputLimit);
+            confirmActivation();
+          }}
+          disabled={!localInputLimit || localInputLimit <= 0}
+          className={`flex-1 py-4 rounded-2xl font-black transition-all ${
+            !localInputLimit || localInputLimit <= 0
+              ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+              : "bg-[#00F5A0] text-black hover:bg-[#00d88c]"
+          }`}
         >
           PROCEED TO DEPOSIT
         </button>
@@ -1325,12 +1420,14 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
   return (
     <div className="animate-in fade-in space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {/* USDT Wallet - $ symbol */}
         <WalletCard
           label="USDT Wallet"
-          val={usdt.toFixed(2)}
+          val={`$${usdt.toFixed(2)}`}
           sub={`≈ ₹${(usdt * 95).toLocaleString()}`}
         />
 
+        {/* INR Wallet - ₹ symbol */}
         <WalletCard
           label="INR Wallet"
           val={`₹${inr.toLocaleString()}`}
@@ -1338,6 +1435,7 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
           highlight
         />
 
+        {/* Cashback Wallet - ₹ symbol */}
         <WalletCard
           label="Cashback"
           val={`₹${cb.toLocaleString()}`}
@@ -1347,6 +1445,7 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
         />
       </div>
       
+      {/* Rest remains same */}
       <div className="flex gap-4">
         <ActionButton icon={<PlusCircle />} label="Deposit" onClick={() => setActiveTab("Deposit")} />
         <ActionButton icon={<ScanLine />} label="Scanner Queue" primary onClick={() => setActiveTab("Scanner")} />
@@ -1356,7 +1455,14 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
         <h3 className="font-black italic mb-6">Recent Ledger</h3>
         <div className="space-y-2">
           {transactions.slice(0, 5).map(tx => (
-            <TransactionRow key={tx._id} merchant={tx.type} date={new Date(tx.createdAt).toLocaleDateString()} amt={`₹${tx.amount}`} status="SUCCESS" />
+            <TransactionRow 
+  key={tx._id} 
+  merchant={tx.type} 
+  date={new Date(tx.createdAt).toLocaleDateString()} 
+  amt={tx.amount}  // फक्त number पाठवा, symbol नको
+  status="SUCCESS" 
+  type={tx.type}   // type पाठवा
+/>
           ))}
         </div>
       </div>
@@ -1512,9 +1618,9 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     }
     
     try {
-      console.log("Accepting request:", s._id);
+      // console.log("Accepting request:", s._id);
       const result = await acceptRequest(s._id);
-      console.log("Accept result:", result);
+      // console.log("Accept result:", result);
       
       // Success toast
 // Success toast - update message to 2 minutes
@@ -2157,7 +2263,9 @@ const HistoryPage = ({ transactions }) => (
             <p className="text-[10px] text-gray-500 font-bold">{new Date(tx.createdAt).toLocaleString()}</p>
           </div>
           <div className="text-right">
-            <p className="font-black italic text-sm">₹{tx.amount}</p>
+            <p className="font-black italic text-sm">
+              {tx.type === 'DEPOSIT' ? `$${tx.amount}` : `₹${tx.amount}`}
+            </p>
             <p className="text-[8px] text-[#00F5A0] font-black uppercase tracking-widest italic">{tx.status || 'SUCCESS'}</p>
           </div>
         </div>
@@ -2167,9 +2275,42 @@ const HistoryPage = ({ transactions }) => (
   </div>
 );
 
-// ReferralPage Component
+// ReferralPage Component - FULL UPDATED with Stats and Filters
 const ReferralPage = ({ referralData, teamStats }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [showTeamCashback, setShowTeamCashback] = useState(false);
+  const [selectedLevel, setSelectedLevel] = useState(null);
+  const [expandedMember, setExpandedMember] = useState(null);
+  const [statsFilter, setStatsFilter] = useState('total'); // 'today' or 'total'
+  const [todayStats, setTodayStats] = useState({
+    teamBusiness: 0,
+    yourCommission: 0,
+    teamMembers: 0
+  });
+
+// ReferralPage Component मध्ये हा useEffect जोडा
+
+// Load today's stats
+useEffect(() => {
+  const fetchTodayStats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const data = await getTodayTeamStats(token);
+      
+      if (data.success) {
+        setTodayStats({
+          teamBusiness: data.teamBusiness || 0,
+          yourCommission: data.yourCommission || 0,
+          teamMembers: data.teamMembers || 0
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching today stats:", error);
+    }
+  };
+  
+  fetchTodayStats();
+}, []);
 
   const copyReferralCode = () => {
     navigator.clipboard.writeText(referralData.referralCode);
@@ -2181,8 +2322,45 @@ const ReferralPage = ({ referralData, teamStats }) => {
     { level: 2, rate: "15%", color: "from-blue-500 to-cyan-500" },
     { level: 3, rate: "10%", color: "from-green-500 to-emerald-500" },
     { level: 4, rate: "5%", color: "from-purple-500 to-pink-500" },
-    { level: 5, rate: "3%", color: "from-red-500 to-rose-500" }
+    { level: 5, rate: "30%", color: "from-red-500 to-rose-500" },
+    { level: 6, rate: "3%", color: "from-indigo-500 to-purple-500" },
+    { level: 7, rate: "4%", color: "from-pink-500 to-red-500" },
+    { level: 8, rate: "3%", color: "from-teal-500 to-green-500" },
+    { level: 9, rate: "3%", color: "from-cyan-500 to-blue-500" },
+    { level: 10, rate: "30%", color: "from-orange-500 to-red-500" },
+    { level: 11, rate: "3%", color: "from-lime-500 to-green-500" },
+    { level: 12, rate: "3%", color: "from-amber-500 to-orange-500" },
+    { level: 13, rate: "3%", color: "from-emerald-500 to-teal-500" },
+    { level: 14, rate: "3%", color: "from-sky-500 to-blue-500" },
+    { level: 15, rate: "3%", color: "from-violet-500 to-purple-500" },
+    { level: 16, rate: "5%", color: "from-fuchsia-500 to-pink-500" },
+    { level: 17, rate: "10%", color: "from-rose-500 to-red-500" },
+    { level: 18, rate: "15%", color: "from-amber-500 to-orange-500" },
+    { level: 19, rate: "30%", color: "from-emerald-500 to-teal-500" },
+    { level: 20, rate: "30%", color: "from-blue-500 to-indigo-500" },
+    { level: 21, rate: "63%", color: "from-purple-500 to-pink-500" }
   ];
+
+  // Group levels by legs (7 legs for 21 levels)
+  const legs = [
+    { name: "Leg 1", levels: [1, 2, 3], unlocked: true },
+    { name: "Leg 2", levels: [4, 5, 6], unlocked: teamStats?.legsUnlocked?.leg2 },
+    { name: "Leg 3", levels: [7, 8, 9], unlocked: teamStats?.legsUnlocked?.leg3 },
+    { name: "Leg 4", levels: [10, 11, 12], unlocked: teamStats?.legsUnlocked?.leg4 },
+    { name: "Leg 5", levels: [13, 14, 15], unlocked: teamStats?.legsUnlocked?.leg5 },
+    { name: "Leg 6", levels: [16, 17, 18], unlocked: teamStats?.legsUnlocked?.leg6 },
+    { name: "Leg 7", levels: [19, 20, 21], unlocked: teamStats?.legsUnlocked?.leg7 }
+  ];
+
+  // Calculate total team business
+  const totalTeamBusiness = teamStats 
+    ? Object.values(teamStats).reduce((sum, level) => {
+        if (level && typeof level === 'object' && level.teamCashback) {
+          return sum + (level.teamCashback || 0);
+        }
+        return sum;
+      }, 0) 
+    : 0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in">
@@ -2207,43 +2385,304 @@ const ReferralPage = ({ referralData, teamStats }) => {
         </div>
         
         <p className="text-sm font-bold mt-4 opacity-70">
-          Share this code & earn up to 30% commission on 5 levels!
+          Share this code & earn commissions on 21 levels!
         </p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-2xl">
-          <Users size={24} className="text-[#00F5A0] mb-2" />
-          <p className="text-xs text-gray-500 uppercase font-bold">Total Team</p>
-          <h3 className="text-3xl font-black italic">
-            {Object.values(referralData.referralTree || {}).reduce((a, b) => a + b, 0)}
-          </h3>
+      {/* Enhanced Stats Grid with Today/Total Filter */}
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-black italic">Team Statistics</h3>
+          <div className="flex gap-2 bg-black/40 p-1 rounded-lg">
+            <button
+              onClick={() => setStatsFilter('today')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                statsFilter === 'today' 
+                  ? 'bg-[#00F5A0] text-black' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setStatsFilter('total')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${
+                statsFilter === 'total' 
+                  ? 'bg-[#00F5A0] text-black' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Total
+            </button>
+          </div>
         </div>
-        
-        <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-2xl">
-          <TrendingUp size={24} className="text-[#00F5A0] mb-2" />
-          <p className="text-xs text-gray-500 uppercase font-bold">Your Earnings</p>
-          <h3 className="text-3xl font-black italic text-[#00F5A0]">
-            ₹{Number(referralData.referralEarnings?.total || 0).toFixed(2)}
-          </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Total Team Members Card */}
+          <div className="bg-black/40 p-5 rounded-xl border border-white/5 hover:border-[#00F5A0]/20 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-[#00F5A0]/10 flex items-center justify-center">
+                <Users size={22} className="text-[#00F5A0]" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Total Team</p>
+                <p className="text-2xl font-black text-white">
+                  {statsFilter === 'today' ? todayStats.teamMembers : referralData.totalReferrals}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 border-t border-white/5 pt-2">
+              {statsFilter === 'today' ? 'Active today' : 'Across 21 levels'}
+            </p>
+          </div>
+
+          {/* Total Team Business Card */}
+          <div className="bg-black/40 p-5 rounded-xl border border-white/5 hover:border-[#00F5A0]/20 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-[#00F5A0]/10 flex items-center justify-center">
+                <TrendingUp size={22} className="text-[#00F5A0]" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Team Business</p>
+                <p className="text-2xl font-black text-[#00F5A0]">
+                  ₹{statsFilter === 'today' 
+                    ? todayStats.teamBusiness.toFixed(2) 
+                    : totalTeamBusiness.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 border-t border-white/5 pt-2">
+              Total cashback earned by team
+            </p>
+          </div>
+
+          {/* Your Cashback From Team Card */}
+          <div className="bg-black/40 p-5 rounded-xl border border-white/5 hover:border-orange-400/20 transition-all">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                <Award size={22} className="text-orange-400" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Your Commission</p>
+                <p className="text-2xl font-black text-orange-400">
+                  ₹{statsFilter === 'today' 
+                    ? todayStats.yourCommission.toFixed(2) 
+                    : Number(referralData.referralEarnings?.total || 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 border-t border-white/5 pt-2">
+              Commission from team
+            </p>
+          </div>
         </div>
-        
-        <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-2xl">
-          <Award size={24} className="text-[#00F5A0] mb-2" />
-          <p className="text-xs text-gray-500 uppercase font-bold">Cashback Balance</p>
-          <h3 className="text-3xl font-black italic text-orange-500">
-            ₹{Number(referralData.cashbackBalance || 0).toFixed(2)}
-          </h3>
+
+        {/* Level-wise Quick Stats */}
+        <div className="mt-6 pt-4 border-t border-white/10">
+          <h4 className="text-sm font-bold mb-3 flex items-center gap-2">
+            <TrendingUp size={14} className="text-[#00F5A0]" />
+            Level-wise Team Business
+          </h4>
+          <div className="grid grid-cols-3 md:grid-cols-7 gap-2">
+            {[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21].map(level => {
+              const levelStats = teamStats?.[`level${level}`];
+              return (
+                <div 
+                  key={level} 
+                  className={`bg-black/30 p-2 rounded-lg text-center ${
+                    levelStats?.unlocked ? 'opacity-100' : 'opacity-50'
+                  }`}
+                >
+                  <div className="flex justify-center items-center gap-1 mb-1">
+                    <span className="text-[8px] text-gray-500">L{level}</span>
+                    {levelStats?.unlocked ? (
+                      <span className="text-[8px] text-green-500">🔓</span>
+                    ) : (
+                      <span className="text-[8px] text-yellow-500">🔒</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] font-bold text-[#00F5A0] truncate">
+                    ₹{(levelStats?.teamCashback || 0).toFixed(2)}
+                  </p>
+                  <p className="text-[7px] text-gray-600">{levelStats?.users || 0} members</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Team Cashback Section */}
+      {/* Team Cashback Section - Main */}
       <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Users size={20} className="text-[#00F5A0]" />
-            <h3 className="text-lg font-black italic">Team Cashback</h3>
+            <h3 className="text-lg font-black italic">Cashback on Team Business</h3>
+          </div>
+          <button
+            onClick={() => setShowTeamCashback(!showTeamCashback)}
+            className="text-[#00F5A0] hover:bg-[#00F5A0]/10 p-2 rounded-lg transition-all"
+          >
+            {showTeamCashback ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </button>
+        </div>
+
+        {/* Commission Rates by Legs */}
+        <div className="space-y-4 mb-4">
+          {legs.map((leg, index) => (
+            <div key={index} className="border border-white/10 rounded-xl overflow-hidden">
+              <div className={`p-3 flex items-center justify-between ${
+                leg.unlocked ? 'bg-[#00F5A0]/10' : 'bg-gray-800/50'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${leg.unlocked ? 'text-[#00F5A0]' : 'text-gray-500'}`}>
+                    {leg.name}
+                  </span>
+                  {!leg.unlocked && (
+                    <span className="text-[10px] bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded-full">
+                      Locked
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {leg.levels.map(level => {
+                    const levelData = levels.find(l => l.level === level);
+                    return (
+                      <div key={level} className={`text-[10px] px-2 py-1 rounded ${
+                        leg.unlocked ? `bg-gradient-to-r ${levelData.color} text-white` : 'bg-gray-700 text-gray-500'
+                      }`}>
+                        L{level}: {levelData.rate}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {showTeamCashback && leg.unlocked && leg.levels.map(level => {
+                const levelStats = teamStats?.[`level${level}`];
+                if (!levelStats) return null;
+                
+                return (
+                  <div key={level} className="p-3 border-t border-white/5">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-gray-400">Level {level}</span>
+                      <span className="text-xs text-[#00F5A0]">
+                        {levelStats.users} members
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-3">
+                      <div className="bg-black/40 p-2 rounded-lg">
+                        <p className="text-[8px] text-gray-500">Team Cashback</p>
+                        <p className="text-sm font-bold text-[#00F5A0]">
+                          ₹{(levelStats.teamCashback || 0).toFixed(2)}
+                        </p>
+                      </div>
+                      <div className="bg-black/40 p-2 rounded-lg">
+                        <p className="text-[8px] text-gray-500">Your Commission</p>
+                        <p className="text-sm font-bold text-orange-400">
+                          ₹{(levelStats.yourCommission || 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Members List */}
+                    {levelStats.usersList && levelStats.usersList.length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => setSelectedLevel(selectedLevel === level ? null : level)}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                        >
+                          <Users size={12} />
+                          {selectedLevel === level ? 'Hide members' : `View ${levelStats.users} members`}
+                        </button>
+
+                        {selectedLevel === level && (
+                          <div className="mt-2 space-y-2 max-h-60 overflow-y-auto">
+                            {levelStats.usersList.map((member, i) => (
+                              <div key={i} className="bg-black/30 rounded-lg p-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                      {member.userId?.charAt(0) || '?'}
+                                    </div>
+                                    <div>
+                                      <p className="text-xs font-bold text-white">{member.userId}</p>
+                                      <p className="text-[8px] text-gray-500">Level {level} Member</p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => setExpandedMember(expandedMember === member.userId ? null : member.userId)}
+                                    className="text-[#00F5A0] hover:text-[#00d88c]"
+                                  >
+                                    {expandedMember === member.userId ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                  </button>
+                                </div>
+
+                                {expandedMember === member.userId && (
+                                  <div className="mt-2 pt-2 border-t border-white/10">
+                                    <div className="grid grid-cols-2 gap-2 text-[10px]">
+                                      <div>
+                                        <p className="text-gray-500">Total Earnings</p>
+                                        <p className="text-[#00F5A0] font-bold">₹{(member.earnings || 0).toFixed(2)}</p>
+                                      </div>
+                                      <div>
+                                        <p className="text-gray-500">Team Cashback</p>
+                                        <p className="text-orange-400 font-bold">₹{(member.teamCashback || 0).toFixed(2)}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Member's own team (if any) */}
+                                    {member.downline && member.downline.length > 0 && (
+                                      <div className="mt-2">
+                                        <p className="text-[8px] text-gray-500 mb-1">Downline Members:</p>
+                                        <div className="space-y-1">
+                                          {member.downline.slice(0, 3).map((down, idx) => (
+                                            <div key={idx} className="flex justify-between text-[8px] bg-black/40 p-1 rounded">
+                                              <span className="text-gray-400">{down.userId}</span>
+                                              <span className="text-[#00F5A0]">₹{(down.earnings || 0).toFixed(2)}</span>
+                                            </div>
+                                          ))}
+                                          {member.downline.length > 3 && (
+                                            <p className="text-[7px] text-gray-600 text-center">
+                                              +{member.downline.length - 3} more members
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* Unlock Next Leg Info */}
+        {legs.some(leg => !leg.unlocked) && (
+          <div className="mt-4 p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+            <p className="text-[10px] text-blue-400 flex items-center gap-1">
+              <TrendingUp size={12} />
+              To unlock next leg, add at least 1 member in the last level of current leg
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Commission Rates Summary (Collapsible) */}
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Award size={20} className="text-[#00F5A0]" />
+            <h3 className="text-lg font-black italic">Commission Rates (All 21 Levels)</h3>
           </div>
           <button
             onClick={() => setShowDetails(!showDetails)}
@@ -2253,68 +2692,22 @@ const ReferralPage = ({ referralData, teamStats }) => {
           </button>
         </div>
 
-        {/* Commission Rates */}
-        <div className="grid grid-cols-5 gap-2 mb-4">
-          {levels.map((level) => (
-            <div key={level.level} className="text-center">
-              <div className={`bg-gradient-to-r ${level.color} p-1 rounded-t-lg`}>
-                <span className="text-[8px] font-black text-white">L{level.level}</span>
-              </div>
-              <div className="bg-black/40 p-1 rounded-b-lg">
-                <span className="text-[10px] font-bold text-[#00F5A0]">{level.rate}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="bg-black/40 p-3 rounded-xl">
-            <p className="text-[8px] text-gray-500 uppercase">Team Members</p>
-            <p className="text-xl font-black text-[#00F5A0]">
-              {Object.values(referralData.referralTree || {}).reduce((a, b) => a + b, 0)}
-            </p>
-          </div>
-          <div className="bg-black/40 p-3 rounded-xl">
-            <p className="text-[8px] text-gray-500 uppercase">Team Earnings</p>
-            <p className="text-xl font-black text-[#00F5A0]">
-              ₹{referralData.earningsByLevel?.total?.toFixed(2) || 0}
-            </p>
-          </div>
-        </div>
-
         {showDetails && (
-          <div className="space-y-2 mt-4 pt-4 border-t border-white/10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {levels.map((level) => (
-              <div key={level.level} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${level.color}`} />
-                  <span className="text-xs text-gray-400">Level {level.level}</span>
-                </div>
-                <div className="flex gap-4">
-                  <span className="text-xs text-gray-500">
-                    {referralData.referralTree?.[`level${level.level}`] || 0} members
-                  </span>
-                  <span className="text-xs font-bold text-[#00F5A0]">
-                    ₹{(referralData.earningsByLevel?.[`level${level.level}`] || 0).toFixed(2)}
-                  </span>
+              <div key={level.level} className="bg-black/40 p-2 rounded-lg text-center">
+                <span className="text-[8px] text-gray-500">Level {level.level}</span>
+                <div className={`text-xs font-bold bg-gradient-to-r ${level.color} text-white px-2 py-1 rounded mt-1`}>
+                  {level.rate}
                 </div>
               </div>
             ))}
-
-            <div className="mt-4 p-3 bg-blue-500/10 rounded-xl">
-              <p className="text-[10px] text-blue-400">
-                <TrendingUp size={12} className="inline mr-1" />
-                When your team members earn cashback, you earn commission at these rates!
-              </p>
-            </div>
           </div>
         )}
       </div>
     </div>
   );
 };
-
 // WalletCard Component
 const WalletCard = ({ label, val, sub, highlight, showRedeem, onRedeem }) => (
   <div className={`p-6 md:p-8 rounded-[2rem] border ${highlight ? "bg-[#00F5A0] text-black shadow-[0_10px_30px_rgba(0,245,160,0.2)]" : "bg-[#0A1F1A] border-white/10"}`}>
@@ -2333,11 +2726,12 @@ const WalletCard = ({ label, val, sub, highlight, showRedeem, onRedeem }) => (
 );
 
 // TransactionRow Component
-const TransactionRow = ({ merchant, date, amt, status }) => (
+const TransactionRow = ({ merchant, date, amt, status, type }) => (
   <div className="flex justify-between items-center p-3 hover:bg-white/5 rounded-2xl transition-colors">
     <div className="flex items-center gap-3">
       <div className="w-8 h-8 rounded-lg bg-[#00F5A0]/10 flex items-center justify-center text-[#00F5A0]">
-        {merchant === 'TEAM_CASHBACK' ? <Users size={14} /> : <CheckCircle size={14} />}
+        {merchant === 'TEAM_CASHBACK' ? <Users size={14} /> : 
+         merchant === 'DEPOSIT' ? <Wallet size={14} /> : <CheckCircle size={14} />}
       </div>
       <div className="min-w-0">
         <p className="text-sm font-bold truncate">
@@ -2347,7 +2741,9 @@ const TransactionRow = ({ merchant, date, amt, status }) => (
       </div>
     </div>
     <div className="text-right">
-      <p className="text-sm font-black italic">{amt}</p>
+      <p className="text-sm font-black italic">
+        {type === 'DEPOSIT' ? `$${amt}` : `₹${amt}`}
+      </p>
       <p className="text-[8px] text-[#00F5A0] font-black uppercase italic tracking-widest">{status}</p>
     </div>
   </div>

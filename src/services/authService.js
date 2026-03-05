@@ -81,7 +81,7 @@ const jsonHeaders = {
 
 export const login = async (userId, pin) => {
   try {
-    console.log("🔐 Login attempt:", { userId, pin }); // Debug log
+    // console.log("🔐 Login attempt:", { userId, pin }); // Debug log
 
     const response = await fetch(`${API_BASE}/auth/login`, {
       method: "POST",
@@ -90,7 +90,7 @@ export const login = async (userId, pin) => {
     });
     
     const data = await response.json();
-    console.log("📥 Login response:", { status: response.status, data }); // Debug log
+    // console.log("📥 Login response:", { status: response.status, data }); // Debug log
     
     if (response.ok) {
       return { 
@@ -116,7 +116,7 @@ export const login = async (userId, pin) => {
 
 export const adminLogin = async (adminId, pin) => {
   try {
-    console.log("🔐 Admin login attempt:", { adminId, pin }); // Debug log
+    // console.log("🔐 Admin login attempt:", { adminId, pin }); // Debug log
 
     const response = await fetch(`${API_BASE}/admin/login`, {
       method: "POST",
@@ -125,7 +125,7 @@ export const adminLogin = async (adminId, pin) => {
     });
     
     const data = await response.json();
-    console.log("📥 Admin login response:", { status: response.status, data }); // Debug log
+    // console.log("📥 Admin login response:", { status: response.status, data }); // Debug log
     
     if (response.ok) {
       // Handle both response formats
@@ -153,7 +153,7 @@ export const adminLogin = async (adminId, pin) => {
 
 export const register = async (userData) => {
   try {
-    console.log("📝 Register attempt:", userData); // Debug log
+    // console.log("📝 Register attempt:", userData); // Debug log
 
     const response = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
@@ -162,7 +162,7 @@ export const register = async (userData) => {
     });
     
     const data = await response.json();
-    console.log("📥 Register response:", { status: response.status, data }); // Debug log
+    // console.log("📥 Register response:", { status: response.status, data }); // Debug log
     
     if (response.ok) {
       return { 
@@ -237,5 +237,26 @@ export const getActivationStatus = async (token) => {
   } catch (error) {
     console.error("Error fetching activation status:", error);
     return { activated: false };
+  }
+};
+
+
+// services/authService.js - यामध्ये add करा
+
+export const getTodayTeamStats = async (token) => {
+  try {
+    const res = await fetch(`${API_BASE}/transactions/today-team-stats`, {
+      headers: { "Authorization": `Bearer ${token}` }
+    });
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error("Error fetching today's team stats:", error);
+    return { 
+      success: false, 
+      teamBusiness: 0, 
+      yourCommission: 0, 
+      teamMembers: 0 
+    };
   }
 };

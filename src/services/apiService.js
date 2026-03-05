@@ -122,7 +122,7 @@ export const getActiveRequests = async () => {
 
 /* 3️⃣ ACCEPT REQUEST (User B) */
 export const acceptRequest = async (scannerId) => {
-  console.log("Calling acceptRequest API with ID:", scannerId);
+  // console.log("Calling acceptRequest API with ID:", scannerId);
   try {
     const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE}/scanner/accept`, {
@@ -135,7 +135,7 @@ export const acceptRequest = async (scannerId) => {
     });
     
     const data = await response.json();
-    console.log("AcceptRequest response:", data);
+    // console.log("AcceptRequest response:", data);
     
     if (!response.ok) {
       throw new Error(data.message || "Failed to accept request");
