@@ -6,6 +6,7 @@ import {
   Rocket, CreditCard, Smartphone, BarChart3, Shield, HeadphonesIcon
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import ChatBot from './ChatBot'; // ✅ Import ChatBot
 
 const HelpPage = () => {
   const [expandedFaq, setExpandedFaq] = useState(null);
@@ -332,6 +333,20 @@ const HelpPage = () => {
             Support response time: 24-48 hours. Please share your User ID when contacting.
           </p>
         </div>
+      </div>
+
+      {/* ✅ ChatBot Section at the bottom */}
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-[#00F5A0]/10 flex items-center justify-center">
+            <span className="text-[#00F5A0] text-lg">🤖</span>
+          </div>
+          <h3 className="text-lg font-black text-white">AI Assistant</h3>
+        </div>
+        <p className="text-gray-400 text-sm mb-4">
+          Get instant answers to your questions. Our AI assistant is here to help 24/7.
+        </p>
+        <ChatBot />
       </div>
     </div>
   );

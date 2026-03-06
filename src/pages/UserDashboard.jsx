@@ -1713,7 +1713,7 @@ const confirmActivation = async () => {
     </div>
   </div>
 )}
- <ChatBot />
+ {/* <ChatBot /> */}
     </div>
   );
 }
