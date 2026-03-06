@@ -2621,27 +2621,16 @@ const HistoryPage = ({ transactions }) => (
         // Determine which currency symbol to use
         let currencySymbol = "₹"; // Default INR
         
-        // Case 1: DEPOSIT always in USD
+        // ✅ Case 1: DEPOSIT always in USD
         if (tx.type === 'DEPOSIT') {
           currencySymbol = "$";
         }
-        // Case 2: WALLET_ACTIVATION based on meta or fromWallet
+        // ✅ Case 2: WALLET_ACTIVATION always in USD
         else if (tx.type === 'WALLET_ACTIVATION') {
-          // If meta has usdtAmount or fromWallet is USDT, show in USD
-          if (tx.meta?.usdtAmount || tx.fromWallet === 'USDT') {
-            currencySymbol = "$";
-          } else {
-            currencySymbol = "₹";
-          }
-        }
-        // Case 3: Check meta for currency info
-        else if (tx.meta?.currency === 'USDT' || tx.meta?.originalCurrency === 'USDT') {
           currencySymbol = "$";
         }
-        // Case 4: Based on fromWallet/toWallet
-        else if (tx.fromWallet === 'USDT' || tx.toWallet === 'USDT') {
-          currencySymbol = "$";
-        }
+        // ✅ Case 3: CONVERSION - original in USD, final in INR (हाताळले meta मध्ये)
+        // ✅ CREDIT, DEBIT, CASHBACK नेहमी ₹ मध्ये
         
         return (
           <div key={tx._id} className="flex justify-between items-center p-4 bg-black/20 rounded-2xl border border-white/5 hover:border-[#00F5A0]/20 transition-all">
@@ -2652,13 +2641,18 @@ const HistoryPage = ({ transactions }) => (
                 {tx.type === 'DEPOSIT' && <Wallet size={14} className="text-blue-500" />}
                 {tx.type === 'WALLET_ACTIVATION' && <Zap size={14} className="text-[#00F5A0]" />}
                 {tx.type === 'CASHBACK' && <Award size={14} className="text-orange-500" />}
-                {tx.type === 'DEBIT' && <ArrowRightLeft size={14} className="text-red-500" />}
                 {tx.type === 'CREDIT' && <ArrowRightLeft size={14} className="text-green-500" />}
+                {tx.type === 'DEBIT' && <ArrowRightLeft size={14} className="text-red-500" />}
+                {tx.type === 'CONVERSION' && <ArrowRightLeft size={14} className="text-yellow-500" />}
                 
                 {/* Transaction type display */}
                 {tx.type === 'TEAM_CASHBACK' ? 'Team Cashback' : 
                  tx.type === 'DEPOSIT' ? 'USDT Deposit' : 
                  tx.type === 'WALLET_ACTIVATION' ? 'Wallet Activation' : 
+                 tx.type === 'CONVERSION' ? 'USDT → INR Conversion' :
+                 tx.type === 'CREDIT' ? 'Credit' :
+                 tx.type === 'DEBIT' ? 'Debit' :
+                 tx.type === 'CASHBACK' ? 'Cashback' :
                  tx.type}
               </p>
               <p className="text-[10px] text-gray-500 font-bold">
@@ -2674,17 +2668,22 @@ const HistoryPage = ({ transactions }) => (
               <p className="font-black italic text-sm">
                 {currencySymbol}{tx.amount.toFixed(2)}
                 
+                {/* Show USDT for DEPOSIT and WALLET_ACTIVATION */}
+                {(tx.type === 'DEPOSIT' || tx.type === 'WALLET_ACTIVATION') && (
+                  <span className="block text-[8px] text-gray-500">USDT</span>
+                )}
+                
                 {/* Show conversion details for WALLET_ACTIVATION */}
                 {tx.type === 'WALLET_ACTIVATION' && tx.meta?.inrAmount && (
                   <span className="block text-[8px] text-gray-500">
-                    (≈ ₹{tx.meta.inrAmount})
+                    ≈ ₹{tx.meta.inrAmount}
                   </span>
                 )}
                 
                 {/* Show conversion details for CONVERSION */}
                 {tx.type === 'CONVERSION' && tx.meta && (
                   <span className="block text-[8px] text-gray-500">
-                    (${tx.meta.originalAmount} → ₹{tx.amount})
+                    ${tx.meta.originalAmount} → ₹{tx.amount}
                   </span>
                 )}
               </p>
@@ -3162,40 +3161,41 @@ const WalletCard = ({ label, val, sub, highlight, showRedeem, onRedeem }) => (
   </div>
 );
 
-// TransactionRow Component - FIXED with safe meta handling
+// TransactionRow Component - CORRECTED with proper currency symbols
 const TransactionRow = ({ merchant, date, amt, status, type, meta = {} }) => {
   // Determine currency symbol
   let currencySymbol = "₹"; // Default INR
   
-  // Case 1: DEPOSIT always in USD
+  // ✅ Case 1: DEPOSIT always in USD
   if (type === 'DEPOSIT') {
     currencySymbol = "$";
   }
-  // Case 2: WALLET_ACTIVATION based on meta
+  // ✅ Case 2: WALLET_ACTIVATION always in USD (कारण USDT ने होते)
   else if (type === 'WALLET_ACTIVATION') {
-    // Check if it's USDT-based activation
-    if (meta?.usdtAmount || meta?.currency === 'USDT' || merchant === 'WALLET_ACTIVATION') {
-      currencySymbol = "$";
-    }
-  }
-  // Case 3: Check meta for currency
-  else if (meta?.currency === 'USDT' || meta?.originalCurrency === 'USDT') {
     currencySymbol = "$";
   }
+  // ✅ Case 3: CONVERSION shows original in USD, final in INR (हाताळले meta मध्ये)
+  // ✅ CREDIT, DEBIT, CASHBACK नेहमी ₹ मध्ये
   
   return (
     <div className="flex justify-between items-center p-3 hover:bg-white/5 rounded-2xl transition-colors">
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-[#00F5A0]/10 flex items-center justify-center text-[#00F5A0]">
-          {merchant === 'TEAM_CASHBACK' ? <Users size={14} /> : 
-           merchant === 'DEPOSIT' ? <Wallet size={14} /> : 
-           merchant === 'WALLET_ACTIVATION' ? <Zap size={14} /> : 
+          {merchant === 'TEAM_CASHBACK' ? <Users size={14} className="text-purple-500" /> : 
+           merchant === 'DEPOSIT' ? <Wallet size={14} className="text-blue-500" /> : 
+           merchant === 'WALLET_ACTIVATION' ? <Zap size={14} className="text-[#00F5A0]" /> : 
+           merchant === 'CASHBACK' ? <Award size={14} className="text-orange-500" /> :
+           merchant === 'CREDIT' ? <ArrowRightLeft size={14} className="text-green-500" /> :
+           merchant === 'DEBIT' ? <ArrowRightLeft size={14} className="text-red-500" /> :
            <CheckCircle size={14} />}
         </div>
         <div className="min-w-0">
           <p className="text-sm font-bold truncate">
             {merchant === 'TEAM_CASHBACK' ? 'Team Cashback' : 
              merchant === 'WALLET_ACTIVATION' ? 'Wallet Activation' : 
+             merchant === 'CREDIT' ? 'Credit' :
+             merchant === 'DEBIT' ? 'Debit' :
+             merchant === 'CASHBACK' ? 'Cashback' :
              merchant}
           </p>
           <p className="text-[9px] text-gray-500 font-bold">{date}</p>
@@ -3204,19 +3204,18 @@ const TransactionRow = ({ merchant, date, amt, status, type, meta = {} }) => {
       <div className="text-right">
         <p className="text-sm font-black italic">
           {currencySymbol}{amt}
-          {/* दाखवा की हे USDT आहे */}
-          {type === 'WALLET_ACTIVATION' && currencySymbol === '$' && (
+          {/* Show USDT for DEPOSIT and WALLET_ACTIVATION */}
+          {(type === 'DEPOSIT' || type === 'WALLET_ACTIVATION') && (
             <span className="block text-[8px] text-gray-500">USDT</span>
           )}
         </p>
         <p className="text-[8px] text-[#00F5A0] font-black uppercase italic tracking-widest">
-          {merchant === 'WALLET_ACTIVATION' ? 'ACTIVATED' : status}
+          {type === 'WALLET_ACTIVATION' ? 'ACTIVATED' : status}
         </p>
       </div>
     </div>
   );
 };
-
 // ActionButton Component
 const ActionButton = ({ icon, label, primary, onClick }) => (
   <button onClick={onClick} className={`flex-1 py-4 md:py-5 rounded-2xl md:rounded-[2rem] font-black flex items-center justify-center gap-3 border transition-all active:scale-95 ${primary ? "bg-[#00F5A0] text-black border-transparent" : "bg-white/5 border-white/10 hover:bg-white/10"}`}>
