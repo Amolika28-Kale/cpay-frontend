@@ -618,6 +618,7 @@ useEffect(() => {
 }, [wallets, walletActivated, dailyAcceptLimit]);
 
 // ✅ Activation amount calculate करा (10% of daily limit in INR, then convert to USDT)
+// ✅ Activation amount calculate with minimum deposit check
 const calculateActivationAmount = (limit) => {
   // 10% of daily limit in INR
   const inrAmount = limit * 0.1;
@@ -627,6 +628,11 @@ const calculateActivationAmount = (limit) => {
   
   // Return with 2 decimal places
   return Number(usdtAmount.toFixed(2));
+};
+
+// ✅ Check if amount meets minimum $50
+const isMinimumMet = (amount) => {
+  return amount >= 50;
 };
 
 // Example:
@@ -902,6 +908,13 @@ const confirmActivation = async () => {
     // For new activation: pay for full limit
     requiredAmount = calculateActivationAmount(localInputLimit);
     limitToSet = localInputLimit;
+    
+    // ✅ CHECK MINIMUM FOR FIRST TIME
+    if (requiredAmount < 50) {
+      toast.error("Minimum deposit for first activation is $50 USDT");
+      setLocalInputLimit("");
+      return;
+    }
   }
   
   // ✅ Store pending activation with proper info
@@ -911,7 +924,7 @@ const confirmActivation = async () => {
     timestamp: Date.now(),
     depositPending: true,
     depositSubmitted: false,
-    isIncrease: isIncrease, // Flag to identify if it's an increase
+    isIncrease: isIncrease,
     previousLimit: isIncrease ? currentLimit : null
   }));
   
@@ -1523,7 +1536,7 @@ const confirmActivation = async () => {
         </div>
       )}
 
-{/* Wallet Activation Modal - CORRECTED for Additional Payment */}
+{/* Wallet Activation Modal - CORRECTED with Minimum Deposit */}
 {showActivationModal && (
   <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
     <div className="bg-[#0A1F1A] p-6 md:p-8 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
@@ -1612,6 +1625,19 @@ const confirmActivation = async () => {
               </p>
             </div>
             
+            {/* ✅ MINIMUM DEPOSIT WARNING for first time */}
+            {!walletActivated && calculateActivationAmount(localInputLimit) < 50 && (
+              <div className="mt-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
+                <p className="text-[10px] text-red-400 font-bold flex items-center gap-1">
+                  <AlertCircle size={12} />
+                  Minimum deposit for first activation is $50 USDT
+                </p>
+                <p className="text-[8px] text-red-400/70 mt-1">
+                  Current: ${calculateActivationAmount(localInputLimit)} USDT
+                </p>
+              </div>
+            )}
+            
             {/* Calculation Explanation */}
             <p className="text-[10px] text-gray-500 mt-2 text-center bg-black/20 p-2 rounded-lg">
               ⚡ {(localInputLimit * 0.1).toFixed(2)} INR ÷ 95 = {calculateActivationAmount(localInputLimit)} USDT
@@ -1645,6 +1671,12 @@ const confirmActivation = async () => {
             ? 'After successful additional deposit, your 7-day limit will be increased automatically'
             : 'After successful deposit, your wallet will be activated for 7 days automatically'}
         </p>
+        {/* ✅ Add minimum deposit info for first time */}
+        {!walletActivated && (
+          <p className="text-[8px] text-yellow-500/70 mt-1">
+            ⚡ First activation requires minimum $50 USDT deposit
+          </p>
+        )}
       </div>
       
       <div className="flex gap-4">
@@ -1662,12 +1694,15 @@ const confirmActivation = async () => {
           disabled={
             !localInputLimit || 
             localInputLimit <= 0 || 
-            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))
+            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)) ||
+            // ✅ Disable if first time and amount < $50
+            (!walletActivated && calculateActivationAmount(localInputLimit) < 50)
           }
           className={`flex-1 py-4 rounded-2xl font-black transition-all ${
             !localInputLimit || 
             localInputLimit <= 0 || 
-            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))
+            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)) ||
+            (!walletActivated && calculateActivationAmount(localInputLimit) < 50)
               ? "bg-gray-700 text-gray-400 cursor-not-allowed"
               : "bg-[#00F5A0] text-black hover:bg-[#00d88c]"
           }`}

@@ -109,11 +109,24 @@ export const requestToPay = async (amount, imageFile, upiLink = "") => {
 
 
 /* 2️⃣ GET ACTIVE REQUESTS */
+// In apiService.js
 export const getActiveRequests = async () => {
-  const res = await fetch(`${API_BASE}/scanner/active`, {
-    headers: getAuthHeaders(),
-  });
-  return res.json();
+  try {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`${API_BASE}/scanner/active`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    
+    // If response has requests and limitInfo, return both
+    if (data.requests) {
+      return data.requests;
+    }
+    return data;
+  } catch (error) {
+    console.error("Error fetching active requests:", error);
+    return [];
+  }
 };
 
 
