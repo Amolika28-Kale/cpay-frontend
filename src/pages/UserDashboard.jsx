@@ -4,7 +4,8 @@ import {
   LayoutGrid, ArrowRightLeft, Wallet, ScanLine, CheckCircle,
   LogOut, X, Clock, Menu, Loader, Zap, PlusCircle, Camera, UploadCloud, Bell,
   Users, TrendingUp, Award, Gift, Copy, ChevronDown, ChevronUp, User, Key, AlertCircle,
-  ArrowRight
+  ArrowRight,
+  HelpCircle
 } from "lucide-react";
 
 import {
@@ -23,6 +24,8 @@ import toast from 'react-hot-toast';
 import { Html5Qrcode } from "html5-qrcode";
 import QRCode from 'react-qr-code';
 import API_BASE from "../services/api";
+import HelpPage from "../components/HelpPage";
+import ChatBot from "../components/ChatBot";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
@@ -249,6 +252,45 @@ const [depositVerifying, setDepositVerifying] = useState(false);
     }
   }, [wallets]);
 
+   // ✅ Add this function to calculate 7-day total from scanners
+  const calculateSevenDayTotal = () => {
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const sevenDayTotal = scanners
+      .filter(s => 
+        s.status === "ACCEPTED" && 
+        new Date(s.acceptedAt) >= sevenDaysAgo &&
+        String(s.acceptedBy?._id) === String(user._id)
+      )
+      .reduce((sum, request) => sum + (request.amount || 0), 0);
+    
+    // console.log("📊 7-day total calculated:", sevenDayTotal);
+    return sevenDayTotal;
+  };
+
+  // ✅ Update the useEffect that calculates todayAcceptedTotal
+  useEffect(() => {
+    const calculateAcceptedTotal = () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // First try to get from activation status
+      if (activationStatus?.sevenDayTotal > 0) {
+        setTodayAcceptedTotal(activationStatus.sevenDayTotal);
+        return;
+      }
+      
+      // Otherwise calculate from scanners
+      const total = calculateSevenDayTotal();
+      setTodayAcceptedTotal(total);
+    };
+    
+    calculateAcceptedTotal();
+  }, [scanners, user._id, activationStatus.sevenDayTotal]);
+
+
+
   // // Check for new transactions
   // useEffect(() => {
   //   if (transactions.length > prevTransactionsRef.current.length) {
@@ -334,43 +376,56 @@ useEffect(() => {
   }
 }, []);
 
-const loadActivationStatus = async () => {
-  try {
-    const token = localStorage.getItem("token");
-    const status = await getActivationStatus(token);
-    
-    setActivationStatus(status);
-    setWalletActivated(status.activated);
-    
-    // Set 7-day limit
-    setDailyAcceptLimit(status.dailyLimit && status.activated ? status.dailyLimit : "");
-    
-    // Set 7-day total (previously todayAccepted)
-    setTodayAcceptedTotal(status.sevenDayTotal || 0);
-    
-    // Store expiry info
-    if (status.expiryDate) {
-      localStorage.setItem("walletExpiry", status.expiryDate);
+  // ✅ Update loadActivationStatus to properly set values
+  const loadActivationStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const status = await getActivationStatus(token);
+      
+      console.log("📊 Activation status loaded:", status);
+      
+      setActivationStatus(status);
+      setWalletActivated(status.activated);
+      
+      // Set 7-day limit
+      if (status.dailyLimit && status.activated) {
+        setDailyAcceptLimit(status.dailyLimit);
+      } else {
+        setDailyAcceptLimit("");
+      }
+      
+      // Set 7-day total
+      if (status.sevenDayTotal !== undefined) {
+        setTodayAcceptedTotal(status.sevenDayTotal);
+      } else {
+        // Calculate from scanners if not in status
+        const total = calculateSevenDayTotal();
+        setTodayAcceptedTotal(total);
+      }
+      
+      // Store expiry info
+      if (status.expiryDate) {
+        localStorage.setItem("walletExpiry", status.expiryDate);
+      }
+      
+      // Show warning if near expiry
+      if (status.activated && status.remainingDays <= 2 && status.remainingDays > 0) {
+        toast(
+          <div className="flex items-center gap-2">
+            <AlertCircle size={20} className="text-yellow-500" />
+            <div>
+              <div className="font-bold text-yellow-500">Wallet Expiring Soon!</div>
+              <div className="text-xs">{status.remainingDays} days remaining</div>
+            </div>
+          </div>,
+          { duration: 10000 }
+        );
+      }
+      
+    } catch (error) {
+      console.error("Error loading activation status:", error);
     }
-    
-    // Show warning if near expiry
-    if (status.activated && status.remainingDays <= 2 && status.remainingDays > 0) {
-      toast(
-        <div className="flex items-center gap-2">
-          <AlertCircle size={20} className="text-yellow-500" />
-          <div>
-            <div className="font-bold text-yellow-500">Wallet Expiring Soon!</div>
-            <div className="text-xs">{status.remainingDays} days remaining</div>
-          </div>
-        </div>,
-        { duration: 10000 }
-      );
-    }
-    
-  } catch (error) {
-    console.error("Error loading activation status:", error);
-  }
-};
+  };
 
   const loadAllData = async () => {
     try {
@@ -448,7 +503,7 @@ const loadActivationStatus = async () => {
 
 // UserDashboard.jsx मध्ये - checkActivationDeposit useEffect मध्ये बदल
 
-// Check if deposit completed for activation - FIXED
+// Check if deposit completed for activation - FIXED for increases too
 useEffect(() => {
   const checkActivationDeposit = async () => {
     const pending = localStorage.getItem("pendingActivation");
@@ -457,13 +512,11 @@ useEffect(() => {
     const pendingData = JSON.parse(pending);
     
     // ✅ IMPORTANT: Check if deposit was actually submitted
-    // If depositPending is true, it means user hasn't submitted deposit yet
     if (pendingData.depositPending) {
-      // console.log("⏳ Deposit not submitted yet, waiting...");
       return;
     }
     
-    const { dailyLimit, amount, timestamp } = pendingData;
+    const { dailyLimit, amount, timestamp, isIncrease, previousLimit } = pendingData;
     
     // Check if deposit was completed in last 10 minutes
     if (Date.now() - timestamp > 10 * 60 * 1000) {
@@ -473,16 +526,17 @@ useEffect(() => {
     
     // ✅ Check if 2 minutes have passed since deposit submission
     if (Date.now() - timestamp < 2 * 60 * 1000) {
-      // console.log("⏳ Waiting for 2 minutes verification after deposit...");
       return;
     }
     
-    // ✅ First check if wallet is already activated (maybe by backend)
-    if (walletActivated) {
-      // console.log("✅ Wallet already activated, clearing pending...");
+    // ✅ First check if wallet is already at new limit (maybe by backend)
+    if (isIncrease && dailyAcceptLimit >= dailyLimit) {
       localStorage.removeItem("pendingActivation");
-      
-      // Refresh data to show updated status
+      await loadActivationStatus();
+      await loadAllData();
+      return;
+    } else if (!isIncrease && walletActivated) {
+      localStorage.removeItem("pendingActivation");
       await loadActivationStatus();
       await loadAllData();
       return;
@@ -503,7 +557,8 @@ useEffect(() => {
           },
           body: JSON.stringify({ 
             dailyLimit: dailyLimit,
-            activationAmount: amount
+            activationAmount: amount,
+            isIncrease: isIncrease || false
           })
         });
         
@@ -514,13 +569,17 @@ useEffect(() => {
             <div className="flex items-center gap-2">
               <CheckCircle size={20} className="text-[#00F5A0]" />
               <div>
-                <div className="font-bold">Wallet Activated! 🎉</div>
+                <div className="font-bold">
+                  {isIncrease ? 'Limit Increased! 🎉' : 'Wallet Activated! 🎉'}
+                </div>
                 <div className="text-xs">
                   <span className="text-blue-400">{amount} USDT</span> → 
                   <span className="text-green-400"> ₹{data.inrAmount}</span>
                 </div>
                 <div className="text-xs text-gray-400">
-                  Daily limit: ₹{dailyLimit}
+                  {isIncrease 
+                    ? `New limit: ₹${dailyLimit} (was ₹${previousLimit})`
+                    : `Daily limit: ₹${dailyLimit}`}
                 </div>
               </div>
             </div>,
@@ -533,15 +592,13 @@ useEffect(() => {
           await loadAllData();
           localStorage.removeItem("pendingActivation");
         } else {
-          // Handle error
           console.error("Activation failed:", data);
-          if (data.message === "Wallet already activated") {
+          if (data.message?.includes("already activated") || data.message?.includes("already at")) {
             setWalletActivated(true);
             setDailyAcceptLimit(data.dailyLimit || dailyLimit);
             localStorage.removeItem("pendingActivation");
-            toast.success("Wallet already activated!");
+            toast.success(isIncrease ? "Limit already increased!" : "Wallet already activated!");
             
-            // Refresh data
             await loadActivationStatus();
             await loadAllData();
           } else {
@@ -553,13 +610,13 @@ useEffect(() => {
         toast.error("Failed to activate wallet");
       }
     } else {
-      // Wallet not yet credited? Check again after some time
       console.log("USDT wallet balance not updated yet, waiting...");
     }
   };
   
   checkActivationDeposit();
-}, [wallets, walletActivated, loadActivationStatus, loadAllData]);
+}, [wallets, walletActivated, dailyAcceptLimit]);
+
 // ✅ Activation amount calculate करा (10% of daily limit in INR, then convert to USDT)
 const calculateActivationAmount = (limit) => {
   // 10% of daily limit in INR
@@ -810,44 +867,80 @@ const handleCreateScanner = async () => {
 
 // In UserDashboard.jsx - Update these functions
 
-const handleActivateWallet = async () => {
-  // Reset local input when opening modal
+const handleActivateWallet = () => {
+  // Reset local input
   setLocalInputLimit("");
+  
+  // ✅ Check current limit to suggest higher amount
+  const currentLimit = dailyAcceptLimit || activationStatus.dailyLimit || 0;
+  if (currentLimit > 0) {
+    // Suggest current limit + 1000 or any reasonable increment
+    setLocalInputLimit(currentLimit + 1000);
+  }
+  
   setShowActivationModal(true);
 };
 
 const confirmActivation = async () => {
   setShowActivationModal(false);
   
-  // Calculate activation amount based on localInputLimit
-  const requiredAmount = calculateActivationAmount(localInputLimit);
+  // Get current limit
+  const currentLimit = Number(dailyAcceptLimit || activationStatus.dailyLimit || 0);
   
-  // ✅ Store pending activation with a flag that deposit is pending
+  // Calculate required amount based on whether it's new activation or increase
+  let requiredAmount;
+  let limitToSet;
+  let isIncrease = false;
+  
+  if (walletActivated) {
+    // For increase: only pay for the difference
+    const additionalLimit = localInputLimit - currentLimit;
+    requiredAmount = calculateActivationAmount(additionalLimit);
+    limitToSet = localInputLimit; // New total limit
+    isIncrease = true;
+  } else {
+    // For new activation: pay for full limit
+    requiredAmount = calculateActivationAmount(localInputLimit);
+    limitToSet = localInputLimit;
+  }
+  
+  // ✅ Store pending activation with proper info
   localStorage.setItem("pendingActivation", JSON.stringify({
-    dailyLimit: localInputLimit,
+    dailyLimit: limitToSet,
     amount: requiredAmount,
     timestamp: Date.now(),
-    depositPending: true, // Important: This flag indicates deposit is not yet submitted
-    depositSubmitted: false // Track if deposit was actually submitted
+    depositPending: true,
+    depositSubmitted: false,
+    isIncrease: isIncrease, // Flag to identify if it's an increase
+    previousLimit: isIncrease ? currentLimit : null
   }));
   
   // Redirect to Deposit tab with pre-filled amount
   setActiveTab("Deposit");
   
-  // Set deposit amount to activation amount
+  // Set deposit amount to required amount
   setDepositData({ 
     amount: requiredAmount.toFixed(2), 
     network: "TRC20" 
   });
   
-  // Show message to user
+  // Show appropriate message
   toast.success(
     <div className="flex items-center gap-2">
       <ArrowRight size={20} className="text-[#00F5A0]" />
       <div>
-        <div className="font-bold">Please Deposit {requiredAmount} USDT</div>
-        <div className="text-xs">For ₹{localInputLimit.toLocaleString()} daily limit</div>
-        <div className="text-xs text-gray-400 mt-1">After deposit submission, wallet will activate in 2 minutes ⏱️</div>
+        <div className="font-bold">
+          {walletActivated ? 'Please Deposit Additional ' : 'Please Deposit '}
+          {requiredAmount} USDT
+        </div>
+        <div className="text-xs">
+          {walletActivated 
+            ? `For increasing limit from ₹${currentLimit.toLocaleString()} to ₹${localInputLimit.toLocaleString()}`
+            : `For ₹${localInputLimit.toLocaleString()} daily limit`}
+        </div>
+        <div className="text-xs text-gray-400 mt-1">
+          After deposit submission, wallet will update in 2 minutes ⏱️
+        </div>
       </div>
     </div>,
     { duration: 6000 }
@@ -957,6 +1050,12 @@ const confirmActivation = async () => {
             active={activeTab === "Referral"}
             onClick={() => { setActiveTab("Referral"); setIsSidebarOpen(false); }}
           />
+          <SidebarLink 
+  icon={<HelpCircle size={20} />} 
+  label="Help" 
+  active={activeTab === "Help"} 
+  onClick={() => { setActiveTab("Help"); setIsSidebarOpen(false); }} 
+/>
 
           <div className="pt-10 border-t border-white/5 mt-10">
             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-500 font-bold italic transition-all hover:bg-red-500/10 rounded-xl">
@@ -1018,9 +1117,9 @@ const confirmActivation = async () => {
         <p className="text-[8px] text-gray-600 mt-1">Waiting for acceptance</p>
       </div>
     </div>
-{/* 7-DAY LIMIT STATUS */}
+{/* 7-DAY LIMIT STATUS - FIXED */}
 <div className="bg-[#0A1F1A] border border-white/10 p-4 rounded-2xl">
-  {/* Header - 7 Day Limit Info */}
+  {/* Header */}
   <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
     <span className="text-xs text-gray-400">7-Day Limit Status</span>
     {walletActivated && activationStatus?.expiryDate && (
@@ -1030,120 +1129,84 @@ const confirmActivation = async () => {
     )}
   </div>
 
-  {/* Total 7-Day Limit */}
+
+  {/* Total 7-Day Limit - CORRECT: dailyLimit */}
   <div className="flex justify-between items-center mb-2">
     <span className="text-xs text-gray-400">Total 7-Day Limit</span>
     <span className="text-sm font-bold text-[#00F5A0]">
-      {dailyAcceptLimit ? `₹${dailyAcceptLimit.toLocaleString()}` : "Not set"}
+      ₹{Number(dailyAcceptLimit || activationStatus.dailyLimit || 0).toLocaleString()}
     </span>
   </div>
   
-  {/* Daily Average */}
-  {dailyAcceptLimit && (
+  {/* Daily Average - CORRECT: dailyLimit ÷ 7 */}
+  {/* {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
     <div className="flex justify-between items-center mb-2">
       <span className="text-xs text-gray-400">Daily Average</span>
       <span className="text-sm font-bold text-blue-400">
-        ₹{(dailyAcceptLimit / 7).toFixed(2)}/day
+        ₹{((dailyAcceptLimit || activationStatus.dailyLimit || 0) / 7).toFixed(2)}/day
       </span>
     </div>
   )}
-  
-  {/* Used in Last 7 Days */}
+   */}
+  {/* Used in Last 7 Days - CORRECT: sevenDayTotal */}
   <div className="flex justify-between items-center mb-2">
     <span className="text-xs text-gray-400">Used (Last 7 Days)</span>
-    <span className="text-sm font-bold text-orange-500">₹{todayAcceptedTotal.toLocaleString()}</span>
+    <span className="text-sm font-bold text-orange-500">
+      ₹{Number(activationStatus.sevenDayTotal || todayAcceptedTotal || 0).toLocaleString()}
+    </span>
   </div>
   
-  {/* Remaining for 7 Days */}
-  {dailyAcceptLimit && (
-    <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
-      <span className="text-xs text-gray-400">Remaining for 7 Days</span>
-      <span className="text-sm font-bold text-[#00F5A0]">
-        ₹{(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()}
-        {dailyAcceptLimit > 0 && (
-          <span className="text-[10px] text-gray-500 ml-2">
-            ({Math.round(((dailyAcceptLimit - todayAcceptedTotal) / dailyAcceptLimit) * 100)}% left)
-          </span>
-        )}
-      </span>
-    </div>
-  )}
+  {/* Remaining for 7 Days - CORRECT: remaining */}
+  <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
+    <span className="text-xs text-gray-400">Remaining for 7 Days</span>
+    <span className="text-sm font-bold text-[#00F5A0]">
+      ₹{Number(activationStatus.remaining || 
+          (dailyAcceptLimit - todayAcceptedTotal) || 0).toLocaleString()}
+      {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
+        <span className="text-[10px] text-gray-500 ml-2">
+          ({Math.round((Number(todayAcceptedTotal || 0) / Number(dailyAcceptLimit || activationStatus.dailyLimit)) * 100)}% used)
+        </span>
+      )}
+    </span>
+  </div>
   
-  {/* Progress Bar for 7 Days */}
-  {dailyAcceptLimit && dailyAcceptLimit > 0 && (
+  {/* Progress Bar */}
+  {/* {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
     <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-4">
       <div 
         className="h-full bg-gradient-to-r from-orange-500 to-[#00F5A0] transition-all duration-300"
-        style={{ width: `${Math.min((todayAcceptedTotal / dailyAcceptLimit) * 100, 100)}%` }}
+        style={{ 
+          width: `${Math.min((Number(todayAcceptedTotal || 0) / Number(dailyAcceptLimit || activationStatus.dailyLimit)) * 100, 100)}%` 
+        }}
       />
     </div>
-  )}
+  )} */}
   
-  {/* Days remaining in current cycle */}
-  {walletActivated && activationStatus?.remainingDays > 0 && (
-    <div className="mb-3 p-2 bg-blue-500/5 rounded-lg border border-blue-500/10">
-      <div className="flex justify-between items-center text-[10px]">
-        <span className="text-gray-400">Days Remaining:</span>
-        <span className="font-bold text-blue-400">
-          {activationStatus.remainingDays} days
-        </span>
-      </div>
-      <div className="w-full h-1 bg-white/5 rounded-full mt-1 overflow-hidden">
-        <div 
-          className="h-full bg-blue-500"
-          style={{ 
-            width: `${((7 - activationStatus.remainingDays) / 7) * 100}%` 
-          }}
-        />
-      </div>
-    </div>
-  )}
+
   
-  {/* Change Limit Button - Available Anytime */}
+    {/* Change Limit Button */}
+{walletActivated && (
+  <button
+    onClick={handleActivateWallet}
+    className="w-full bg-blue-500/20 text-blue-500 py-2 rounded-xl font-black text-xs hover:bg-blue-500/30 transition-all border border-blue-500/20 mb-3"
+  >
+    Change 7-Day Limit (Pay Additional Amount)
+  </button>
+)}
+  {/* Wallet Active Message - CORRECT: remaining */}
   {walletActivated && (
-    <button
-      onClick={handleActivateWallet}
-      className="w-full bg-blue-500/20 text-blue-500 py-2 rounded-xl font-black text-xs hover:bg-blue-500/30 transition-all border border-blue-500/20 mb-3"
-    >
-      Change 7-Day Limit (Pay Additional Amount)
-    </button>
-  )}
-  
-  {/* Activation Info */}
-  {!walletActivated ? (
-    <>
-      <div className="flex justify-between items-center mb-3 pb-2 border-b border-white/10">
-        <span className="text-xs text-gray-400">Activation Required:</span>
-        <span className="text-sm font-bold text-blue-400">
-          Set your 7-day limit to activate
-        </span>
-      </div>
-      
-      <button
-        onClick={handleActivateWallet}
-        className="w-full bg-blue-500/20 text-blue-500 py-3 rounded-xl font-black text-sm hover:bg-blue-500/30 transition-all border border-blue-500/20 mt-2"
-      >
-        Activate Wallet (7 Days)
-      </button>
-    </>
-  ) : (
     <div className="bg-green-500/10 text-green-500 p-3 rounded-xl text-xs font-bold text-center">
       <div className="flex items-center justify-center gap-2 mb-1">
         <CheckCircle size={14} />
         <span>Wallet Active for 7 Days</span>
       </div>
       <div className="text-[10px] text-gray-400">
-        {dailyAcceptLimit && dailyAcceptLimit - todayAcceptedTotal > 0 ? (
-          <>₹{(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()} remaining this week</>
-        ) : (
-          <>
-            <span className="text-red-400">7-day limit exhausted</span>
-            <span className="block mt-1 text-[8px]">Click "Change 7-Day Limit" above to add more</span>
-          </>
-        )}
+        ₹{Number(activationStatus.remaining || 
+            (dailyAcceptLimit - todayAcceptedTotal) || 0).toLocaleString()} remaining this week
       </div>
     </div>
   )}
+  
 </div>
 
             {/* CREATE PAY REQUEST */}
@@ -1390,6 +1453,10 @@ const confirmActivation = async () => {
           />
         )}
 
+        {activeTab === "Help" && (
+  <HelpPage />
+)}
+
         <div className="h-20 md:hidden" />
       </main>
 
@@ -1456,48 +1523,66 @@ const confirmActivation = async () => {
         </div>
       )}
 
-{/* Wallet Activation Modal - Updated for 7 Days */}
+{/* Wallet Activation Modal - CORRECTED for Additional Payment */}
 {showActivationModal && (
   <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
     <div className="bg-[#0A1F1A] p-6 md:p-8 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
-      <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">Activate Wallet for 7 Days</h3>
+      <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">
+        {walletActivated ? 'Increase 7-Day Limit' : 'Activate Wallet for 7 Days'}
+      </h3>
       
       <p className="text-gray-400 mb-4 text-sm">
-        Enter your 7-day accept limit. Valid for 7 days from activation.
+        {walletActivated 
+          ? 'Enter your new 7-day accept limit. Additional payment required for increase.'
+          : 'Enter your 7-day accept limit. Valid for 7 days from activation.'}
       </p>
 
       <div className="mb-6">
         <label className="text-xs text-gray-500 mb-2 block">7-Day Accept Limit (₹)</label>
         <input
           type="number"
-          min="1"
+          min={walletActivated ? (Number(dailyAcceptLimit || activationStatus.dailyLimit || 0) + 1) : 1}
           value={localInputLimit}
           onChange={(e) => {
             const newLimit = e.target.value === "" ? "" : Number(e.target.value);
             setLocalInputLimit(newLimit);
           }}
           className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0]"
-          placeholder="Enter 7-day limit (e.g. 35000)"
+          placeholder={walletActivated ? "Enter higher limit (e.g. 50000)" : "Enter 7-day limit (e.g. 35000)"}
         />
         <p className="text-xs text-gray-500 mt-1">
-          You can change this limit anytime by paying additional amount
+          {walletActivated 
+            ? `Current limit: ₹${Number(dailyAcceptLimit || activationStatus.dailyLimit || 0).toLocaleString()}`
+            : 'You can change this limit anytime by paying additional amount'}
         </p>
         
         {localInputLimit && localInputLimit > 0 ? (
           <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
-            {/* 7-Day Limit Display */}
+            {/* Current Limit Display (if increasing) */}
+            {walletActivated && (
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-xs text-gray-400">Current Limit:</p>
+                <p className="text-sm font-bold text-white">
+                  ₹{Number(dailyAcceptLimit || activationStatus.dailyLimit || 0).toLocaleString()}
+                </p>
+              </div>
+            )}
+            
+            {/* New 7-Day Limit Display */}
             <div className="flex justify-between items-center mb-2">
-              <p className="text-xs text-gray-400">Your 7-Day Limit:</p>
+              <p className="text-xs text-gray-400">Your New 7-Day Limit:</p>
               <p className="text-sm font-bold text-white">₹{localInputLimit.toLocaleString()}</p>
             </div>
             
-            {/* Daily Average */}
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs text-gray-400">Daily Average:</p>
-              <p className="text-sm font-bold text-orange-400">
-                ₹{(localInputLimit / 7).toFixed(2)}/day
-              </p>
-            </div>
+            {/* Additional Amount Calculation (if increasing) */}
+            {walletActivated && localInputLimit > Number(dailyAcceptLimit || activationStatus.dailyLimit || 0) && (
+              <div className="flex justify-between items-center mb-2 pt-2 border-t border-blue-500/20">
+                <p className="text-xs text-gray-400">Additional Limit:</p>
+                <p className="text-sm font-bold text-green-400">
+                  +₹{(localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)).toLocaleString()}
+                </p>
+              </div>
+            )}
             
             {/* 10% in INR */}
             <div className="flex justify-between items-center mb-2">
@@ -1513,17 +1598,28 @@ const confirmActivation = async () => {
               <p className="text-sm font-bold text-[#00F5A0]">1 USDT = ₹95</p>
             </div>
             
-            {/* Activation Amount in USDT - $ symbol */}
+            {/* Activation/Additional Amount in USDT */}
             <div className="flex justify-between items-center pt-2 border-t border-blue-500/20">
-              <p className="text-xs text-gray-400">Activation Amount:</p>
+              <p className="text-xs text-gray-400">
+                {walletActivated ? 'Additional Payment:' : 'Activation Amount:'}
+              </p>
               <p className="text-lg font-black text-[#00F5A0]">
-                ${calculateActivationAmount(localInputLimit)} USDT
+                ${calculateActivationAmount(
+                  walletActivated 
+                    ? localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)
+                    : localInputLimit
+                )} USDT
               </p>
             </div>
             
             {/* Calculation Explanation */}
             <p className="text-[10px] text-gray-500 mt-2 text-center bg-black/20 p-2 rounded-lg">
               ⚡ {(localInputLimit * 0.1).toFixed(2)} INR ÷ 95 = {calculateActivationAmount(localInputLimit)} USDT
+              {walletActivated && (
+                <span className="block text-[8px] text-green-500 mt-1">
+                  (Additional: ₹{(localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)).toLocaleString()} limit for ${calculateActivationAmount(localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))} USDT)
+                </span>
+              )}
             </p>
             
             {/* Validity Period */}
@@ -1534,7 +1630,9 @@ const confirmActivation = async () => {
         ) : (
           <div className="mt-4 p-4 bg-gray-500/10 rounded-xl border border-gray-500/20">
             <p className="text-xs text-gray-400 text-center">
-              Enter your 7-day limit to see activation amount
+              {walletActivated 
+                ? 'Enter your new 7-day limit to see additional payment required'
+                : 'Enter your 7-day limit to see activation amount'}
             </p>
           </div>
         )}
@@ -1543,7 +1641,9 @@ const confirmActivation = async () => {
       <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl mb-6">
         <p className="text-yellow-500 text-xs font-bold flex items-center gap-2">
           <AlertCircle size={14} />
-          After successful deposit, your wallet will be activated for 7 days automatically
+          {walletActivated 
+            ? 'After successful additional deposit, your 7-day limit will be increased automatically'
+            : 'After successful deposit, your wallet will be activated for 7 days automatically'}
         </p>
       </div>
       
@@ -1558,23 +1658,27 @@ const confirmActivation = async () => {
           CANCEL
         </button>
         <button 
-          onClick={() => {
-            setDailyAcceptLimit(localInputLimit);
-            confirmActivation();
-          }}
-          disabled={!localInputLimit || localInputLimit <= 0}
+          onClick={confirmActivation}
+          disabled={
+            !localInputLimit || 
+            localInputLimit <= 0 || 
+            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))
+          }
           className={`flex-1 py-4 rounded-2xl font-black transition-all ${
-            !localInputLimit || localInputLimit <= 0
+            !localInputLimit || 
+            localInputLimit <= 0 || 
+            (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))
               ? "bg-gray-700 text-gray-400 cursor-not-allowed"
               : "bg-[#00F5A0] text-black hover:bg-[#00d88c]"
           }`}
         >
-          PROCEED TO DEPOSIT
+          {walletActivated ? 'PROCEED TO ADDITIONAL PAYMENT' : 'PROCEED TO DEPOSIT'}
         </button>
       </div>
     </div>
   </div>
 )}
+ <ChatBot />
     </div>
   );
 }
@@ -1667,19 +1771,31 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
   );
 };
 
-// RequestCard Component - Updated to hide expired requests from everyone
+// RequestCard Component - System request normal UI सह
 const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelRequest, walletActivated, acceptTermsAccepted, onActivateWallet }) => {
-  const isOwner = String(s.user?._id) === String(user._id);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes = 600 seconds
+  // ✅ System request असल्यास (user = null) isOwner false
+  const isOwner = s.user ? String(s.user?._id) === String(user._id) : false;
+  const isSystemRequest = !s.user; // user = null म्हणजे system request
+  const isAutoRequest = s.isAutoRequest || false;
+  const [timeLeft, setTimeLeft] = useState(600);
   const [isExpired, setIsExpired] = useState(false);
   
+  // Generate random user ID for system requests
+  const getRandomUserId = () => {
+    const chars = '0123456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return `${result}`;
+  };
+  
   useEffect(() => {
-    // Only calculate time for ACTIVE requests without acceptor
     if (s.status === "ACTIVE" && !s.acceptedBy) {
       const createdTime = new Date(s.createdAt).getTime();
       const currentTime = new Date().getTime();
       const elapsedSeconds = Math.floor((currentTime - createdTime) / 1000);
-      const remaining = Math.max(0, 600 - elapsedSeconds); // 10 minutes expiry
+      const remaining = Math.max(0, 600 - elapsedSeconds);
       
       setTimeLeft(remaining);
       setIsExpired(remaining === 0);
@@ -1690,7 +1806,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
             if (prev <= 1) {
               clearInterval(timer);
               setIsExpired(true);
-              loadAllData(); // Refresh data when expired
+              loadAllData();
               return 0;
             }
             return prev - 1;
@@ -1701,7 +1817,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       }
     } else {
       setTimeLeft(0);
-      // Check if it's expired based on status or time
       setIsExpired(
         s.status === "EXPIRED" || 
         (s.status === "ACTIVE" && !s.acceptedBy && new Date(s.createdAt).getTime() + 600000 < new Date().getTime())
@@ -1709,13 +1824,12 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     }
   }, [s.createdAt, s.status, s.acceptedBy, loadAllData]);
 
-  // ✅ Don't render if expired - for EVERYONE (owners and non-owners)
-  // Expired requests should not be visible to anyone
+  // Expired requests hide करा
   if (isExpired || s.status === "EXPIRED") {
     return null;
   }
 
-  // Also don't render if status is COMPLETED (hide completed requests)
+  // Completed requests hide करा
   if (s.status === "COMPLETED") {
     return null;
   }
@@ -1741,7 +1855,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
 
   const downloadQR = () => {
     const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
-    
     const link = document.createElement('a');
     link.href = imageUrl;
     link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
@@ -1760,9 +1873,12 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     });
   };
 
-  // Handle accept with proper validation and toasts
+  // Card style - सगळ्यासाठी same
+  const getCardStyle = () => {
+    return "border border-white/10"; // सगळ्यासाठी समान style
+  };
+
   const handleAccept = async () => {
-    // Check if request is expired (double-check)
     if (isExpired) {
       toast.error(
         <div className="flex items-center gap-2">
@@ -1777,7 +1893,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       return;
     }
 
-    // Check if wallet is activated
     if (!walletActivated) {
       toast(
         <div 
@@ -1812,7 +1927,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       return;
     }
 
-    // Check if terms are accepted
     if (!acceptTermsAccepted) {
       toast.error(
         <div className="flex items-center gap-2">
@@ -1837,25 +1951,16 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     try {
       const result = await acceptRequest(s._id);
       
+      // System request साठी special message नको, normal message पाठवा
       toast.success(
         <div className="flex items-center gap-2">
           <CheckCircle size={20} className="text-[#00F5A0]" />
           <div>
             <div className="font-bold">Request Accepted! 🎯</div>
             <div className="text-xs">You have 10 minutes to complete the payment</div>
-            <div className="text-[8px] text-gray-400 mt-1">
-              ⏰ Complete payment within 10 minutes
-            </div>
           </div>
         </div>,
-        { 
-          duration: 5000,
-          style: {
-            background: '#0A1F1A',
-            color: 'white',
-            border: '1px solid #00F5A0/20'
-          }
-        }
+        { duration: 5000 }
       );
       
       loadAllData();
@@ -1874,15 +1979,23 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     }
   };
 
+  // Get created by text - system request साठी random user ID
+  const getCreatedByText = () => {
+    if (isSystemRequest) {
+      return `${getRandomUserId()}`;
+    }
+    return s.user?.userId || `${s.user?._id?.slice(-6)}`;
+  };
+
   return (
-    <div className="bg-[#0A1F1A] border border-white/10 p-5 rounded-[2rem] relative flex flex-col h-full hover:border-white/20 transition-all">
+    <div className={`bg-[#0A1F1A] ${getCardStyle()} p-5 rounded-[2rem] relative flex flex-col h-full hover:border-white/20 transition-all`}>
+      
       {/* Status Badge and Timer */}
       <div className="flex items-center gap-2 mb-3">
         <div className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full ${statusDisplay.color}`}>
           {statusDisplay.text}
         </div>
         
-        {/* Show timer only for active requests */}
         {s.status === "ACTIVE" && !s.acceptedBy && (
           <div className={`${timeLeft < 60 ? 'bg-red-500/20 text-red-500' : 'bg-yellow-500/20 text-yellow-500'} text-[8px] font-black px-2 py-1.5 rounded-full flex items-center gap-1 border border-yellow-500/20`}>
             <Clock size={10} />
@@ -1912,12 +2025,21 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       </button>
       
       {/* Amount */}
-      <h3 className="text-2xl font-black text-center mb-1 text-white">₹{s.amount}</h3>
+      <h3 className="text-2xl font-black text-center mb-1 text-white">
+        ₹{s.amount}
+      </h3>
       
-      {/* Created By */}
+      {/* Created By - सगळ्यांसाठी एकसारखं दिसेल */}
       <p className="text-center text-[10px] text-gray-500 font-bold mb-3 italic uppercase bg-white/5 py-1.5 px-3 rounded-full mx-auto">
-        Created by: {s.user?.name || s.user?.userId || `User ${s.user?._id?.slice(-6)}`}
+        Created by: {getCreatedByText()}
       </p>
+
+      {/* Auto Confirm Info - फक्त auto request साठी */}
+      {s.status === "PAYMENT_SUBMITTED" && isAutoRequest && (
+        <div className="mb-3 p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+          
+        </div>
+      )}
 
       {/* Accepted By Section */}
       {s.acceptedBy && (
@@ -1941,7 +2063,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
 
       {/* Action Buttons */}
       <div className="mt-auto space-y-2">
-        {/* Owner Actions */}
         {isOwner ? (
           s.status === "PAYMENT_SUBMITTED" ? (
             <div className="space-y-2">
@@ -1951,12 +2072,14 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
               >
                 👁️ VIEW PROOF
               </button>
-              <button 
-                onClick={() => confirmRequest(s._id).then(loadAllData)} 
-                className="w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all"
-              >
-                ✅ CONFIRM RECEIPT
-              </button>
+              {!isAutoRequest && (
+                <button 
+                  onClick={() => confirmRequest(s._id).then(loadAllData)} 
+                  className="w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all"
+                >
+                  ✅ CONFIRM RECEIPT
+                </button>
+              )}
             </div>
           ) : s.status === "ACTIVE" && !s.acceptedBy ? (
             <button 
@@ -1967,7 +2090,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
             </button>
           ) : null
         ) : (
-          /* Acceptor Actions */
           <>
             {s.status === "ACTIVE" && (
               <button 
@@ -1983,7 +2105,6 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
           </>
         )}
         
-        {/* Upload Screenshot Button (for accepted requests) */}
         {String(s.acceptedBy?._id) === String(user._id) && s.status === "ACCEPTED" && (
           <button 
             onClick={() => setSelectedScanner(s._id)} 
