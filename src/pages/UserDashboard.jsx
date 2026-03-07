@@ -252,6 +252,29 @@ const [depositVerifying, setDepositVerifying] = useState(false);
     }
   }, [wallets]);
 
+  const [activeSlot, setActiveSlot] = useState("ALL");
+
+const slots = [
+  { id: "1-99", label: "₹1 - ₹99", min: 1, max: 99 }, // ⭐ NEW SLOT
+  { id: "100-999", label: "₹100 - ₹999", min: 100, max: 999 },
+  { id: "1000-9999", label: "₹1000 - ₹9999", min: 1000, max: 9999 },
+  { id: "10000-24999", label: "₹10000 - ₹24999", min: 10000, max: 24999 },
+  { id: "25000-49999", label: "₹25000 - ₹49999", min: 25000, max: 49999 },
+  { id: "50000-99999", label: "₹50000 - ₹99999", min: 50000, max: 99999 },
+  { id: "100000+", label: "₹100000+", min: 100000, max: Infinity }
+];
+
+  const filteredRequests = scanners
+  .filter((s) => String(s.user?._id) !== String(user._id))
+  .filter((s) => {
+    if (activeSlot === "ALL") return true;
+
+    const slot = slots.find((slot) => slot.id === activeSlot);
+    if (!slot) return true;
+
+    return s.amount >= slot.min && s.amount <= slot.max;
+  });
+
    // ✅ Add this function to calculate 7-day total from scanners
   const calculateSevenDayTotal = () => {
     const sevenDaysAgo = new Date();
@@ -1368,68 +1391,105 @@ const confirmActivation = async () => {
         )}
       </div>
     </div>
-{/* ACCEPT PAY REQUESTS SECTION - Updated with better messages */}
-    <div>
-      <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
-        Accept Bill Payments
-        {activeRequestsCount > 0 && (
-          <span className="bg-[#00F5A0]/10 text-[#00F5A0] text-[10px] px-2 py-1 rounded-full animate-pulse">
-            {activeRequestsCount} available
-          </span>
-        )}
-      </h2>
-      
-      {/* Accept Terms Checkbox - Only show if there are available requests */}
-      {activeRequestsCount > 0 && (
-        <div className="mb-4">
-          <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-            <p className="text-xs text-gray-400 mb-3 font-bold">BEFORE ACCEPTING:</p>
-            <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
-              <li>You have 10 minutes to complete the payment after accepting</li>
-              <li>Upload clear screenshot of payment proof</li>
-              <li>7-day limit remaining: ₹{(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()}</li>
-              <li>Wallet must be activated to accept requests</li>
-              <li>Each request expires in 10 minutes if not accepted</li>
-            </ul>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={acceptTermsAccepted}
-                onChange={(e) => setAcceptTermsAccepted(e.target.checked)}
-                className="w-4 h-4 accent-[#00F5A0]"
-              />
-              <span className="text-xs text-gray-300">I agree to the terms and conditions</span>
-            </label>
-          </div>
-        </div>
-      )}
-      
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
-        {scanners
-          .filter((s) => String(s.user?._id) !== String(user._id))
-          .map((s) => (
-            <RequestCard
-              key={s._id}
-              s={s}
-              user={user}
-              loadAllData={loadAllData}
-              setSelectedScanner={setSelectedScanner}
-              handleCancelRequest={handleCancelRequest}
-              walletActivated={walletActivated}
-              acceptTermsAccepted={acceptTermsAccepted}
-              onActivateWallet={handleActivateWallet}
-            />
-          ))}
+{/* ACCEPT PAY REQUESTS SECTION */}
+<div>
+  <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
+    Accept Bill Payments
+    {activeRequestsCount > 0 && (
+      <span className="bg-[#00F5A0]/10 text-[#00F5A0] text-[10px] px-2 py-1 rounded-full animate-pulse">
+        {activeRequestsCount} available
+      </span>
+    )}
+  </h2>
 
-        {scanners.filter((s) => String(s.user?._id) !== String(user._id))
-          .length === 0 && (
-          <div className="col-span-full text-center py-20">
-            <p className="text-gray-600 font-black italic uppercase">No Bill Payments Available</p>
-            <p className="text-[10px] text-gray-700 mt-2">Check back later for new requests</p>
-          </div>
-        )}
+  {/* SLOT FILTERS */}
+  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-6">
+    <button
+      onClick={() => setActiveSlot("ALL")}
+      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+        activeSlot === "ALL"
+          ? "bg-[#00F5A0] text-black border-[#00F5A0]"
+          : "bg-white/5 text-gray-400 border-white/10 hover:border-[#00F5A0]/30"
+      }`}
+    >
+      ALL
+    </button>
+
+    {slots.map((slot) => (
+      <button
+        key={slot.id}
+        onClick={() => setActiveSlot(slot.id)}
+        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+          activeSlot === slot.id
+            ? "bg-[#00F5A0] text-black border-[#00F5A0]"
+            : "bg-white/5 text-gray-400 border-white/10 hover:border-[#00F5A0]/30"
+        }`}
+      >
+        {slot.label}
+      </button>
+    ))}
+  </div>
+
+  {/* Accept Terms */}
+  {activeRequestsCount > 0 && (
+    <div className="mb-4">
+      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+        <p className="text-xs text-gray-400 mb-3 font-bold">BEFORE ACCEPTING:</p>
+
+        <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
+          <li>You have 10 minutes to complete the payment after accepting</li>
+          <li>Upload clear screenshot of payment proof</li>
+          <li>
+            7-day limit remaining: ₹
+            {(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()}
+          </li>
+          <li>Wallet must be activated to accept requests</li>
+          <li>Each request expires in 10 minutes if not accepted</li>
+        </ul>
+
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={acceptTermsAccepted}
+            onChange={(e) => setAcceptTermsAccepted(e.target.checked)}
+            className="w-4 h-4 accent-[#00F5A0]"
+          />
+          <span className="text-xs text-gray-300">
+            I agree to the terms and conditions
+          </span>
+        </label>
       </div>
     </div>
+  )}
+
+  {/* REQUEST GRID */}
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
+    {filteredRequests.map((s) => (
+      <RequestCard
+        key={s._id}
+        s={s}
+        user={user}
+        loadAllData={loadAllData}
+        setSelectedScanner={setSelectedScanner}
+        handleCancelRequest={handleCancelRequest}
+        walletActivated={walletActivated}
+        acceptTermsAccepted={acceptTermsAccepted}
+        onActivateWallet={handleActivateWallet}
+      />
+    ))}
+
+    {filteredRequests.length === 0 && (
+      <div className="col-span-full text-center py-20">
+        <p className="text-gray-600 font-black italic uppercase">
+          No Requests In This Slot
+        </p>
+        <p className="text-[10px] text-gray-700 mt-2">
+          Try another amount range
+        </p>
+      </div>
+    )}
+  </div>
+</div>
   </div>
 )}
 
