@@ -1439,10 +1439,6 @@ const confirmActivation = async () => {
         <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
           <li>You have 10 minutes to complete the payment after accepting</li>
           <li>Upload clear screenshot of payment proof</li>
-          <li>
-            7-day limit remaining: ₹
-            {(dailyAcceptLimit - todayAcceptedTotal).toLocaleString()}
-          </li>
           <li>Wallet must be activated to accept requests</li>
           <li>Each request expires in 10 minutes if not accepted</li>
         </ul>
