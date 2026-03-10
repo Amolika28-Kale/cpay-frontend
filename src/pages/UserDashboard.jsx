@@ -735,7 +735,7 @@ const handleDepositSubmit = async () => {
       
     } else {
       toast.dismiss(toastId);
-      toast.error("Deposit submission failed");
+      toast.error("Deposit Amount must be above $50");
       return false;
     }
   } catch (error) {
@@ -1216,6 +1216,16 @@ const confirmActivation = async () => {
       )}
     </span>
   </div>
+
+   {/* ✅ ACTIVATION BUTTON - जर wallet activated नसेल तर */}
+      {!walletActivated && (
+        <button
+          onClick={() => setActiveTab("Deposit")}
+          className="w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-4 rounded-xl font-black italic text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all mb-3 animate-pulse"
+        >
+          ⚡ ACTIVATE WALLET FIRST - GO TO DEPOSIT
+        </button>
+      )}
   
   {/* Progress Bar */}
   {/* {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
@@ -1432,33 +1442,41 @@ const confirmActivation = async () => {
     )}
   </h2>
 
-  {/* SLOT FILTERS */}
-  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-6">
-    <button
-      onClick={() => setActiveSlot("ALL")}
-      className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-        activeSlot === "ALL"
-          ? "bg-[#00F5A0] text-black border-[#00F5A0]"
-          : "bg-white/5 text-gray-400 border-white/10 hover:border-[#00F5A0]/30"
-      }`}
-    >
-      ALL
-    </button>
-
-    {slots.map((slot) => (
+{/* SLOT FILTERS */}
+<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2 mb-6">
+  {slots.map((slot) => {
+    // Check if this slot has any requests
+    const hasRequestsInSlot = scanners
+      .filter((s) => String(s.user?._id) !== String(user._id))
+      .some((s) => s.amount >= slot.min && s.amount <= slot.max);
+    
+    return (
       <button
         key={slot.id}
         onClick={() => setActiveSlot(slot.id)}
-        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
+        className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all relative ${
           activeSlot === slot.id
             ? "bg-[#00F5A0] text-black border-[#00F5A0]"
-            : "bg-white/5 text-gray-400 border-white/10 hover:border-[#00F5A0]/30"
+            : hasRequestsInSlot
+              ? "bg-red-500/20 text-red-400 border-red-500/30 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"
+              : "bg-white/5 text-gray-400 border-white/10 hover:border-[#00F5A0]/30"
         }`}
       >
         {slot.label}
+        {hasRequestsInSlot && activeSlot !== slot.id && (
+          <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full animate-ping" />
+        )}
+        {hasRequestsInSlot && (
+          <span className="ml-1 text-[8px] bg-red-500 text-white px-1 rounded-full">
+            {scanners
+              .filter((s) => String(s.user?._id) !== String(user._id))
+              .filter((s) => s.amount >= slot.min && s.amount <= slot.max).length}
+          </span>
+        )}
       </button>
-    ))}
-  </div>
+    );
+  })}
+</div>
 
   {/* Accept Terms */}
   {activeRequestsCount > 0 && (
