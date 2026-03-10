@@ -75,6 +75,7 @@ const [referralData, setReferralData] = useState({
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   
+  
   // Refs for notifications
   const prevActiveCount = useRef(0);
   const prevWalletsRef = useRef({});
@@ -450,47 +451,63 @@ useEffect(() => {
     }
   };
 
-  const loadAllData = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.warn("Sync aborted: No token found");
-        return;
-      }
-
-      const [w, t, s, pm, ref, team] = await Promise.all([
-        getWallets(),
-        getTransactions(),
-        getActiveRequests(),
-        getActivePaymentMethods(),
-        getReferralStats(token),
-        getTeamCashbackSummary(token)
-      ]);
-
-      setWallets(w || []);
-      setTransactions(t || []);
-      setScanners(s || []);
-      setPaymentMethods(pm || []);
-      
-      if (ref && !ref.message) {
-        setReferralData({
-          referralCode: ref.referralCode || "",
-          totalReferrals: ref.totalReferrals || 0,
-          referralEarnings: ref.referralEarnings || { total: 0 },
-          cashbackBalance: ref.cashbackBalance || 0,
-          referralTree: ref.referralTree || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
-          earningsByLevel: ref.earningsByLevel || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, total: 0 }
-        });
-      }
-      
-      setTeamStats(team);
-
-    } catch (err) {
-      console.error("Sync Error:", err);
-    } finally {
-      setLoading(false);
+const loadAllData = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      console.warn("Sync aborted: No token found");
+      return;
     }
-  };
+
+    const [w, t, s, pm, ref, team] = await Promise.all([
+      getWallets(),
+      getTransactions(),
+      getActiveRequests(),
+      getActivePaymentMethods(),
+      getReferralStats(token),
+      getTeamCashbackSummary(token)
+    ]);
+
+    setWallets(w || []);
+    setTransactions(t || []);
+
+    // ✅ FIX: Existing scanners merge करा
+    setScanners(prev => {
+      const backend = s || [];
+      const merged = [...backend];
+      
+      // prev मध्ये जे requests आहेत पण backend मध्ये नाहीत, ते add करा
+      prev.forEach(req => {
+        const exists = merged.find(b => b._id === req._id);
+        if (!exists) {
+          merged.push(req);
+        }
+      });
+      
+      return merged;
+    });
+
+    setPaymentMethods(pm || []);
+
+    if (ref && !ref.message) {
+      setReferralData({
+        referralCode: ref.referralCode || "",
+        totalReferrals: ref.totalReferrals || 0,
+        referralEarnings: ref.referralEarnings || { total: 0 },
+        cashbackBalance: ref.cashbackBalance || 0,
+        referralTree: ref.referralTree || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0 },
+        earningsByLevel: ref.earningsByLevel || { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, total: 0 }
+      });
+    }
+
+    setTeamStats(team);
+
+  } catch (err) {
+    console.error("Sync Error:", err);
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
     loadAllData();
@@ -740,56 +757,50 @@ const handleCreateScanner = async () => {
   }
 
   setActionLoading(true);
-  const toastId = toast.loading('Creating pay request...');
+  const toastId = toast.loading("Creating pay request...");
 
   try {
     const res = await requestToPay(uploadAmount, selectedImage);
-    
+
     if (res?.scanner?._id) {
+
+      // ✅ FIX: पूर्ण user object बनवा
+      const newRequest = {
+        ...res.scanner,
+        user: {
+          _id: user._id,
+          name: user.name,
+          userId: user.userId
+        },
+        // ✅ सुनिश्चित करा की createdAt आणि expiresAt सेट आहेत
+        createdAt: res.scanner.createdAt || new Date().toISOString(),
+        expiresAt: res.scanner.expiresAt || new Date(Date.now() + 10*60*1000).toISOString()
+      };
+
+      // ✅ Directly state update करा
+      setScanners(prev => [newRequest, ...prev]);
+
       toast.dismiss(toastId);
-      toast.success(
-        <div>
-          <div className="font-bold">Pay Request Created! 🎉</div>
-          <div className="text-sm text-[#00F5A0] mt-1">
-            Amount: ₹{uploadAmount}
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            ⏰ Valid for 10 minutes
-          </div>
-        </div>,
-        { duration: 5000 }
-      );
-      
-      setUploadAmount(""); 
+      toast.success("Pay Request Created! 🎉");
+
+      setUploadAmount("");
       setSelectedImage(null);
       setIsRedeemMode(false);
-      
-      const fileInputs = document.querySelectorAll('input[type="file"]');
-      fileInputs.forEach(input => { input.value = ""; });
+      setActiveTab("Scanner");
 
-      setTimerExpired(false);
-      setTimeLeft(600); // Changed from 300 to 600
-      
-      const timer = setTimeout(() => {
-        setTimerExpired(true);
-        toast.error('Request expired! No one accepted within 10 minutes.', {
-          duration: 5000,
-          icon: '⏰'
-        });
-      }, 600000); // 10 minutes = 600,000 milliseconds
-      
-      setRequestTimer(timer);
+      // ✅ backend sync - delay ने करा
+      setTimeout(() => {
+        loadAllData();
+      }, 2000); // 2 seconds नंतर sync
 
-      setActiveTab("Scanner"); 
-      loadAllData();
     } else {
       toast.dismiss(toastId);
       toast.error(res?.message || "Failed to create request");
     }
+
   } catch (error) {
-    console.error("Post Error:", error);
     toast.dismiss(toastId);
-    toast.error(error?.response?.data?.message || "Something went wrong while uploading");
+    toast.error(error?.response?.data?.message || "Upload failed");
   } finally {
     setActionLoading(false);
   }
@@ -1350,47 +1361,66 @@ const confirmActivation = async () => {
                 </button>
               </div>
             </div>
- <div>
-      <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
-        My Bill Payments
-        {myActiveRequestsCount > 0 && (
-          <span className="bg-orange-500/10 text-orange-500 text-[10px] px-2 py-1 rounded-full">
-            {myActiveRequestsCount} active
-          </span>
-        )}
-        {scanners.filter(s => String(s.user?._id) === String(user._id) && s.status !== "ACTIVE").length > 0 && (
-          <span className="bg-gray-500/10 text-gray-400 text-[10px] px-2 py-1 rounded-full">
-            {scanners.filter(s => String(s.user?._id) === String(user._id) && s.status !== "ACTIVE").length} completed/expired
-          </span>
-        )}
-      </h2>
+<div>
+  <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
+    My Bill Payments
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {scanners
-          .filter((s) => String(s.user?._id) === String(user._id))
-          .map((s) => (
-            <RequestCard
-              key={s._id}
-              s={s}
-              user={user}
-              loadAllData={loadAllData}
-              setSelectedScanner={setSelectedScanner}
-              handleCancelRequest={handleCancelRequest}
-              walletActivated={walletActivated}
-              acceptTermsAccepted={acceptTermsAccepted}
-              onActivateWallet={handleActivateWallet}
-            />
-          ))}
+    {myActiveRequestsCount > 0 && (
+      <span className="bg-orange-500/10 text-orange-500 text-[10px] px-2 py-1 rounded-full">
+        {myActiveRequestsCount} active
+      </span>
+    )}
 
-        {scanners.filter((s) => String(s.user?._id) === String(user._id))
-          .length === 0 && (
-          <div className="col-span-full text-center py-10">
-            <p className="text-gray-600 font-black italic">No Bill Payments Created</p>
-            <p className="text-[10px] text-gray-700 mt-2">Create your first payment request above</p>
-          </div>
-        )}
+    {scanners.filter((s) => {
+      const ownerId = typeof s.user === "object" ? s.user?._id : s.user;
+      return String(ownerId) === String(user._id) && s.status !== "ACTIVE";
+    }).length > 0 && (
+      <span className="bg-gray-500/10 text-gray-400 text-[10px] px-2 py-1 rounded-full">
+        {
+          scanners.filter((s) => {
+            const ownerId = typeof s.user === "object" ? s.user?._id : s.user;
+            return String(ownerId) === String(user._id) && s.status !== "ACTIVE";
+          }).length
+        } completed/expired
+      </span>
+    )}
+  </h2>
+
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+    {scanners
+      .filter((s) => {
+        const ownerId = typeof s.user === "object" ? s.user?._id : s.user;
+        return String(ownerId) === String(user._id);
+      })
+      .map((s) => (
+        <RequestCard
+          key={s._id}
+          s={s}
+          user={user}
+          loadAllData={loadAllData}
+          setSelectedScanner={setSelectedScanner}
+          handleCancelRequest={handleCancelRequest}
+          walletActivated={walletActivated}
+          acceptTermsAccepted={acceptTermsAccepted}
+          onActivateWallet={handleActivateWallet}
+        />
+      ))}
+
+    {scanners.filter((s) => {
+      const ownerId = typeof s.user === "object" ? s.user?._id : s.user;
+      return String(ownerId) === String(user._id);
+    }).length === 0 && (
+      <div className="col-span-full text-center py-10">
+        <p className="text-gray-600 font-black italic">No Bill Payments Created</p>
+        <p className="text-[10px] text-gray-700 mt-2">
+          Create your first payment request above
+        </p>
       </div>
-    </div>
+    )}
+
+  </div>
+</div>
 {/* ACCEPT PAY REQUESTS SECTION */}
 <div>
   <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
@@ -1513,7 +1543,7 @@ const confirmActivation = async () => {
   />
 )}
         
-        {activeTab === "History" && <HistoryPage transactions={transactions} />}
+{activeTab === "History" && <HistoryPage transactions={transactions} />}
         
         {activeTab === "Referral" && (
           <ReferralPage 
@@ -1865,8 +1895,18 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
 // RequestCard Component - System request normal UI सह
 const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelRequest, walletActivated, acceptTermsAccepted, onActivateWallet }) => {
   // ✅ System request असल्यास (user = null) isOwner false
-  const isOwner = s.user ? String(s.user?._id) === String(user._id) : false;
-  const isSystemRequest = !s.user; // user = null म्हणजे system request
+  // const isOwner = s.user ? String(s.user?._id) === String(user._id) : false;
+
+// RequestCard कंपोनेंटमध्ये
+const getUserId = (u) => {
+  if (!u) return null;
+  if (typeof u === "string") return u;
+  return u._id;
+};
+
+const isOwner = String(getUserId(s.user)) === String(user._id);
+const isSystemRequest = !s.user;
+  // const isSystemRequest = !s.user; // user = null म्हणजे system request
   const isAutoRequest = s.isAutoRequest || false;
   const [timeLeft, setTimeLeft] = useState(600);
   const [isExpired, setIsExpired] = useState(false);
@@ -1881,49 +1921,56 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
     return `${result}`;
   };
   
-  useEffect(() => {
-    if (s.status === "ACTIVE" && !s.acceptedBy) {
-      const createdTime = new Date(s.createdAt).getTime();
-      const currentTime = new Date().getTime();
-      const elapsedSeconds = Math.floor((currentTime - createdTime) / 1000);
-      const remaining = Math.max(0, 600 - elapsedSeconds);
-      
-      setTimeLeft(remaining);
-      setIsExpired(remaining === 0);
+useEffect(() => {
+  if (s.status === "ACTIVE" && !s.acceptedBy) {
+    
+    // ✅ Use expiresAt from backend instead of createdAt
+    const expiryTime = new Date(s.expiresAt).getTime();
+    const currentTime = new Date().getTime();
+let remaining = Math.floor((expiryTime - currentTime) / 1000);
 
-      if (remaining > 0) {
-        const timer = setInterval(() => {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              clearInterval(timer);
-              setIsExpired(true);
-              loadAllData();
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+if (!remaining || remaining < 0) {
+  remaining = 600; // fallback 10 min
+}
+    setTimeLeft(remaining);
+    setIsExpired(remaining === 0);
 
-        return () => clearInterval(timer);
-      }
-    } else {
-      setTimeLeft(0);
-      setIsExpired(
-        s.status === "EXPIRED" || 
-        (s.status === "ACTIVE" && !s.acceptedBy && new Date(s.createdAt).getTime() + 600000 < new Date().getTime())
-      );
+    if (remaining > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsExpired(true);
+            loadAllData();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
     }
-  }, [s.createdAt, s.status, s.acceptedBy, loadAllData]);
 
-  // Expired requests hide करा
-  if (isExpired || s.status === "EXPIRED") {
-    return null;
+  } else {
+    setTimeLeft(0);
+
+    setIsExpired(
+      s.status === "EXPIRED" ||
+      (s.status === "ACTIVE" &&
+        !s.acceptedBy &&
+        new Date(s.expiresAt).getTime() < new Date().getTime())
+    );
   }
 
-  // Completed requests hide करा
-  if (s.status === "COMPLETED") {
-    return null;
-  }
+}, [s.expiresAt, s.status, s.acceptedBy]);
+
+ if (s.status === "COMPLETED") {
+  return null;
+}
+
+if (s.status === "EXPIRED") {
+  return null;
+}
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -2182,8 +2229,8 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
           ) : null
         ) : (
           <>
-            {s.status === "ACTIVE" && (
-              <button 
+{s.status === "ACTIVE" && !isOwner && (
+                <button 
                 onClick={handleAccept}
                 className={`w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black italic text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all ${
                   (!walletActivated || !acceptTermsAccepted) ? "opacity-50 cursor-not-allowed" : ""
