@@ -1,5 +1,5 @@
-const API = "http://localhost:5000/api";
-// const API = "https://cpay-backend.onrender.com/api";
+// const API = "http://localhost:5000/api";
+const API = "https://cpay-backend.onrender.com/api";
 
 const getToken = () => localStorage.getItem("token");
 const headers = () => ({
