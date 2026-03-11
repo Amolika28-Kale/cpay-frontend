@@ -701,7 +701,7 @@ const handleDepositSubmit = async () => {
           <CheckCircle size={20} className="text-[#00F5A0]" />
           <div>
             <div className="font-bold">Deposit Submitted! 📥</div>
-            <div className="text-xs">Your wallet will be activated after 2 minutes verification</div>
+            <div className="text-xs">Admin will verify within 5 minutes</div>
           </div>
         </div>,
         { duration: 5000 }
@@ -711,14 +711,14 @@ const handleDepositSubmit = async () => {
       const pending = localStorage.getItem("pendingActivation");
       if (pending) {
         const pendingData = JSON.parse(pending);
-        pendingData.depositPending = false; // Mark deposit as submitted
+        pendingData.depositPending = false;
         pendingData.depositSubmitted = true;
-        pendingData.timestamp = Date.now(); // Reset timer to start from now
+        pendingData.timestamp = Date.now();
         localStorage.setItem("pendingActivation", JSON.stringify(pendingData));
         
-        // Start timer in DepositPage
+        // Start 5-minute timer in DepositPage
         setShowDepositTimer(true);
-        setDepositTimeLeft(120);
+        setDepositTimeLeft(300); // 5 minutes
         setDepositVerifying(true);
       }
       
@@ -735,7 +735,7 @@ const handleDepositSubmit = async () => {
       
     } else {
       toast.dismiss(toastId);
-      toast.error("Deposit Amount must be above $50");
+      toast.error("Deposit submission failed");
       return false;
     }
   } catch (error) {
@@ -2285,24 +2285,24 @@ const DepositPage = ({
   setDepositScreenshot, 
   handleDepositSubmit, 
   actionLoading,
-  setActiveTab, // नवीन prop
-  loadAllData   // नवीन prop
+  setActiveTab, 
+  loadAllData 
 }) => {
   const usdtMethods = paymentMethods.filter(m => m.method?.includes("USDT"));
   
-  // Local state for timer and file upload
+  // Local state for timer
   const [showTimer, setShowTimer] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(120); // 2 minutes = 120 seconds
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes = 300 seconds
   const [isVerifying, setIsVerifying] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedFileName, setSelectedFileName] = useState("");
   const [previewUrl, setPreviewUrl] = useState(null);
   const [depositSubmitted, setDepositSubmitted] = useState(false);
-  const [redirectTimer, setRedirectTimer] = useState(null);
+  const [showPendingMessage, setShowPendingMessage] = useState(false);
   
   const fileInputRef = useRef(null);
 
-  // Timer effect - counts down from 120 to 0
+  // Timer effect - counts down from 300 to 0
   useEffect(() => {
     let timerInterval;
     
@@ -2312,35 +2312,7 @@ const DepositPage = ({
           if (prev <= 1) {
             clearInterval(timerInterval);
             setIsVerifying(false);
-            
-            // ✅ Timer complete - Set redirect timer
-            const redirect = setTimeout(() => {
-              setActiveTab("Overview"); // Go to Overview
-              setShowTimer(false); // Hide timer
-              loadAllData(); // Refresh data
-              
-              // Show success message
-              toast.success(
-                <div className="flex items-center gap-2">
-                  <CheckCircle size={20} className="text-[#00F5A0]" />
-                  <div>
-                    <div className="font-bold">Deposit Successful! 🎉</div>
-                    <div className="text-xs">Your wallet has been activated</div>
-                  </div>
-                </div>,
-                { 
-                  duration: 5000,
-                  style: {
-                    background: '#0A1F1A',
-                    color: 'white',
-                    border: '1px solid #00F5A0/20'
-                  }
-                }
-              );
-            }, 2000); // 2 seconds delay before redirect
-            
-            setRedirectTimer(redirect);
-            
+            setShowPendingMessage(true); // Show pending message after timer expires
             return 0;
           }
           return prev - 1;
@@ -2350,10 +2322,9 @@ const DepositPage = ({
 
     return () => {
       if (timerInterval) clearInterval(timerInterval);
-      if (redirectTimer) clearTimeout(redirectTimer);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
-  }, [showTimer, setActiveTab, loadAllData]);
+  }, [showTimer]);
 
   // Format time as MM:SS
   const formatTime = (seconds) => {
@@ -2363,7 +2334,7 @@ const DepositPage = ({
   };
 
   // Calculate progress percentage
-  const progressPercentage = ((120 - timeLeft) / 120) * 100;
+  const progressPercentage = ((300 - timeLeft) / 300) * 100;
 
   // Handle file selection with validation
   const handleFileChange = (e) => {
@@ -2450,8 +2421,9 @@ const DepositPage = ({
     
     if (success) {
       setShowTimer(true);
-      setTimeLeft(120);
+      setTimeLeft(300); // Reset to 5 minutes
       setIsVerifying(true);
+      setShowPendingMessage(false);
       setDepositSubmitted(true);
       
       if (fileInputRef.current) {
@@ -2464,8 +2436,8 @@ const DepositPage = ({
         setPreviewUrl(null);
       }
       
-      toast.success("Deposit submitted! Verification will complete in 2 minutes.", {
-        duration: 4000,
+      toast.success("Deposit submitted! Admin will verify within 5 minutes.", {
+        duration: 5000,
         icon: '⏱️',
         style: { background: '#0A1F1A', border: '1px solid #00F5A0/20' }
       });
@@ -2568,51 +2540,64 @@ const DepositPage = ({
         </div>
       )}
 
-      {/* ⏱️ 2-MINUTE TIMER DISPLAY WITH PROGRESS BAR */}
+      {/* ⏱️ 5-MINUTE TIMER DISPLAY */}
       {showTimer && (
         <div className="mb-6 p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               {isVerifying && timeLeft > 0 ? (
                 <Loader size={16} className="animate-spin text-yellow-500" />
+              ) : showPendingMessage ? (
+                <Clock size={16} className="text-orange-500" />
               ) : (
                 <CheckCircle size={16} className="text-green-500" />
               )}
               <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
-                {timeLeft > 0 ? "VERIFICATION IN PROGRESS" : "VERIFICATION COMPLETE ✓"}
+                {timeLeft > 0 
+                  ? "AWAITING ADMIN APPROVAL" 
+                  : showPendingMessage 
+                    ? "PENDING ADMIN APPROVAL"
+                    : "PROCESSING COMPLETE"}
               </span>
             </div>
-            <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
-              <span className="text-sm font-black text-yellow-500 font-mono">
-                {formatTime(timeLeft)}
-              </span>
-            </div>
+            {timeLeft > 0 && (
+              <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
+                <span className="text-sm font-black text-yellow-500 font-mono">
+                  {formatTime(timeLeft)}
+                </span>
+              </div>
+            )}
           </div>
           
           {/* PROGRESS BAR */}
-          <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
-            <div 
-              className="h-full bg-gradient-to-r from-yellow-500 to-green-500 transition-all duration-1000 ease-linear"
-              style={{ 
-                width: `${progressPercentage}%`,
-              }}
-            />
-          </div>
+          {timeLeft > 0 && (
+            <>
+              <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
+                <div 
+                  className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000 ease-linear"
+                  style={{ 
+                    width: `${progressPercentage}%`,
+                  }}
+                />
+              </div>
+              
+              <p className="text-[10px] text-gray-500 mt-2 text-center">
+                ⏱️ Admin will verify within {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes
+              </p>
+            </>
+          )}
           
-          <p className="text-[10px] text-gray-500 mt-2 text-center">
-            {timeLeft > 0 ? (
-              <>⏱️ Verification in {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes</>
-            ) : (
-              <span className="text-green-500 font-bold">
-                ✅ Verification complete! Redirecting to Overview...
-              </span>
-            )}
-          </p>
-          
-          {timeLeft === 0 && (
-            <p className="text-[10px] text-green-500 mt-1 text-center animate-pulse">
-              Your wallet has been activated! You can now accept payments.
-            </p>
+          {/* PENDING MESSAGE AFTER 5 MINUTES */}
+          {showPendingMessage && (
+            <div className="mt-3 p-3 bg-orange-500/20 rounded-lg border border-orange-500/30">
+              <p className="text-xs text-orange-400 font-bold text-center flex items-center justify-center gap-2">
+                <Clock size={16} />
+                Your deposit is still pending. Admin approval will take some more time.
+              </p>
+              <p className="text-[10px] text-orange-400/70 text-center mt-2">
+                You'll be notified once approved. Check back later.
+              </p>
+            </div>
           )}
         </div>
       )}
@@ -2723,12 +2708,17 @@ const DepositPage = ({
         ) : showTimer ? (
           <span className="flex items-center justify-center gap-2">
             <Clock size={16} />
-            {timeLeft > 0 ? `WAITING (${formatTime(timeLeft)})` : "COMPLETED ✓"}
+            {timeLeft > 0 ? `AWAITING ADMIN (${formatTime(timeLeft)})` : "PENDING ✓"}
           </span>
         ) : (
           "SUBMIT DEPOSIT"
         )}
       </button>
+      
+      {/* Info Message */}
+      <p className="text-[10px] text-gray-500 text-center mt-4">
+        ⏱️ Deposits are manually verified by admin within 5 minutes
+      </p>
     </form>
   );
 };
