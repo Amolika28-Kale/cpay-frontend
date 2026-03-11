@@ -127,6 +127,13 @@ const [activationStatus, setActivationStatus] = useState({
 const [showDepositTimer, setShowDepositTimer] = useState(false);
 const [depositTimeLeft, setDepositTimeLeft] = useState(300); // 5 minutes
 const [depositVerifying, setDepositVerifying] = useState(false);
+
+
+// Deposit management states
+const [myDeposits, setMyDeposits] = useState([]);
+const [selectedDeposit, setSelectedDeposit] = useState(null);
+const [showDepositScreenshotModal, setShowDepositScreenshotModal] = useState(false);
+const [depositUpdateReason, setDepositUpdateReason] = useState("");
   
     // Helper function to check if request is expired
   const isRequestExpired = (request) => {
@@ -508,13 +515,77 @@ const loadAllData = async () => {
     setLoading(false);
   }
 };
+// ==================== ADD THIS FUNCTION AFTER loadAllData (around line 350) ====================
+
+// ==================== FIX: Load my deposits ====================
+const loadMyDeposits = async () => {
+  try {
+    // Import getMyDeposits from apiService
+    const { getMyDeposits } = await import("../services/apiService");
+    const deposits = await getMyDeposits();
+    
+    // ✅ FIX: Ensure deposits is an array
+    const depositsArray = Array.isArray(deposits) ? deposits : [];
+    setMyDeposits(depositsArray);
+    
+    // Check for newly rejected deposits (last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const justRejected = depositsArray.filter(d => 
+      d.status === 'rejected' && 
+      new Date(d.updatedAt) > fiveMinutesAgo
+    );
+    
+    justRejected.forEach(deposit => {
+      playNotificationSound('new');
+      toast.error(
+        <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl">
+          <div className="bg-red-500/20 p-2 rounded-full">
+            <AlertCircle size={24} className="text-red-500" />
+          </div>
+          <div>
+            <div className="font-bold text-red-500">Deposit Rejected! ❌</div>
+            <div className="text-xs text-gray-300 mt-1">{deposit.rejectReason || "Something wrong. Plz resubmit the transaction details with real screenshots."}</div>
+            <button 
+              onClick={() => {
+                setActiveTab("Deposit");
+                // Pre-fill with rejected deposit data
+                if (deposit) {
+                  setDepositData({ amount: deposit.amount.toString() });
+                  setTxHash(deposit.txHash);
+                  // You can add logic to select the payment method
+                }
+              }}
+              className="mt-2 text-[10px] bg-red-500 text-white px-3 py-1 rounded-full font-bold"
+            >
+              RESUBMIT DEPOSIT
+            </button>
+          </div>
+        </div>,
+        { 
+          duration: 10000,
+          style: {
+            background: '#0A1F1A',
+            color: 'white',
+            border: '1px solid #ef4444/20',
+            padding: 0
+          }
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Error loading my deposits:", error);
+    setMyDeposits([]); // ✅ FIX: Set empty array on error
+  }
+};
 
   useEffect(() => {
     loadAllData();
     loadActivationStatus();
+     loadMyDeposits();
     const interval = setInterval(() => {
       loadAllData();
       loadActivationStatus();
+      
     }, 10000);
     
     return () => {
@@ -1817,10 +1888,172 @@ const confirmActivation = async () => {
     </div>
   </div>
 )}
+
+
+
  {/* <ChatBot /> */}
     </div>
   );
 }
+
+// ==================== ADD THIS COMPONENT BEFORE THE MAIN RETURN (around line 600) ====================
+
+// Deposit Screenshot Management Modal
+const DepositScreenshotModal = ({ deposit, onClose, onUpdate, uploading, updateReason, setUpdateReason }) => {
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large! Max 5MB");
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleUpdate = async () => {
+    if (!selectedFile) {
+      toast.error("Please select a new screenshot");
+      return;
+    }
+
+    const success = await onUpdate(deposit._id, selectedFile, updateReason);
+    if (success) {
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      setUpdateReason("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[500] p-4 backdrop-blur-sm">
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-[#0A1F1A] p-6 border-b border-white/10 flex justify-between items-center">
+          <h3 className="text-xl font-black text-[#00F5A0]">Update Deposit Screenshot</h3>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Current Screenshots Gallery */}
+          {deposit?.paymentScreenshots && deposit.paymentScreenshots.length > 0 && (
+            <div>
+              <h4 className="text-sm font-bold mb-3">Uploaded Screenshots</h4>
+              <div className="grid grid-cols-3 gap-3">
+                {deposit.paymentScreenshots.filter(s => s.isActive).map((ss, idx) => (
+                  <div 
+                    key={idx}
+                    className="relative rounded-xl overflow-hidden border-2 border-white/10 cursor-pointer hover:border-[#00F5A0] transition-all"
+                    onClick={() => window.open(`https://cpay-backend.onrender.com${ss.url}`)}
+                  >
+                    <img 
+                      src={`https://cpay-backend.onrender.com${ss.url}`}
+                      alt={`screenshot-${idx}`}
+                      className="w-full h-24 object-cover"
+                    />
+                    <div className="absolute top-1 right-1 bg-black/60 text-[8px] px-1 rounded">
+                      {new Date(ss.uploadedAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Update Form */}
+          <div className="border-t border-white/10 pt-6">
+            <h4 className="text-sm font-bold mb-3">Upload New Screenshot</h4>
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {!previewUrl ? (
+              <button
+                onClick={() => fileInputRef.current.click()}
+                className="w-full border-2 border-dashed border-white/10 rounded-xl py-8 text-center hover:border-[#00F5A0]/30 transition-all group"
+              >
+                <Camera size={32} className="mx-auto mb-2 text-gray-500 group-hover:text-[#00F5A0]" />
+                <p className="text-sm text-gray-400">Click to select new screenshot</p>
+                <p className="text-[8px] text-gray-600 mt-1">Max 5MB (JPEG, PNG)</p>
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative">
+                  <img
+                    src={previewUrl}
+                    alt="preview"
+                    className="w-full h-48 object-contain bg-black/40 rounded-xl border border-[#00F5A0]"
+                  />
+                  <button
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Reason for update (optional)"
+                  value={updateReason}
+                  onChange={(e) => setUpdateReason(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00F5A0]"
+                />
+
+                <button
+                  onClick={handleUpdate}
+                  disabled={uploading}
+                  className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black text-sm hover:bg-[#00d88c] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader size={16} className="animate-spin" />
+                      UPDATING...
+                    </span>
+                  ) : (
+                    "UPDATE SCREENSHOT"
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Status Info */}
+          <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl">
+            <p className="text-yellow-400 text-xs font-bold mb-2">⚠️ Deposit Status: {deposit?.status}</p>
+            <p className="text-[10px] text-gray-400">
+              You can update screenshots while deposit is pending. After admin approval, screenshots cannot be changed.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // SidebarLink Component
 const SidebarLink = ({ icon, label, active, onClick, badge, highlight }) => (
@@ -1910,24 +2143,522 @@ const OverviewPage = ({ wallets, transactions, setActiveTab, onRedeem }) => {
   );
 };
 
+// // RequestCard Component - System request normal UI सह
+// const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelRequest, walletActivated, acceptTermsAccepted, onActivateWallet }) => {
+//   // ✅ System request असल्यास (user = null) isOwner false
+//   // const isOwner = s.user ? String(s.user?._id) === String(user._id) : false;
+
+// // RequestCard कंपोनेंटमध्ये
+// const getUserId = (u) => {
+//   if (!u) return null;
+//   if (typeof u === "string") return u;
+//   return u._id;
+// };
+
+// const isOwner = String(getUserId(s.user)) === String(user._id);
+// const isSystemRequest = !s.user;
+//   // const isSystemRequest = !s.user; // user = null म्हणजे system request
+//   const isAutoRequest = s.isAutoRequest || false;
+//   const [timeLeft, setTimeLeft] = useState(600);
+//   const [isExpired, setIsExpired] = useState(false);
+
+//     const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+//   const [screenshots, setScreenshots] = useState([]);
+//   const [selectedScreenshotIndex, setSelectedScreenshotIndex] = useState(0);
+//   const [updateReason, setUpdateReason] = useState("");
+//   const [uploading, setUploading] = useState(false);
+
+//   // Fetch screenshots
+//   const fetchScreenshots = async () => {
+//     try {
+//       const token = localStorage.getItem("token");
+//       const res = await fetch(`${API_BASE}/scanner/screenshots/${s._id}`, {
+//         headers: { Authorization: `Bearer ${token}` }
+//       });
+//       const data = await res.json();
+//       if (data.screenshots) {
+//         setScreenshots(data.screenshots);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching screenshots:", error);
+//     }
+//   };
+
+//   // Handle screenshot update
+//   const handleUpdateScreenshot = async (file, index) => {
+//     if (!file) return;
+    
+//     setUploading(true);
+//     const formData = new FormData();
+//     formData.append("scannerId", s._id);
+//     formData.append("screenshotIndex", index);
+//     formData.append("reason", updateReason || "Screenshot updated");
+//     formData.append("screenshot", file);
+
+//     try {
+//       const token = localStorage.getItem("token");
+//       const res = await fetch(`${API_BASE}/scanner/update-screenshot`, {
+//         method: "POST",
+//         headers: {
+//           Authorization: `Bearer ${token}`
+//         },
+//         body: formData
+//       });
+
+//       const data = await res.json();
+//       if (res.ok) {
+//         toast.success("Screenshot updated successfully!");
+//         fetchScreenshots();
+//         loadAllData();
+//         setUpdateReason("");
+//       } else {
+//         toast.error(data.message || "Failed to update screenshot");
+//       }
+//     } catch (error) {
+//       console.error("Error updating screenshot:", error);
+//       toast.error("Failed to update screenshot");
+//     } finally {
+//       setUploading(false);
+//     }
+//   };
+
+//   // Open screenshot modal
+//   const openScreenshotModal = async () => {
+//     await fetchScreenshots();
+//     setShowScreenshotModal(true);
+//   };
+  
+//   // Generate random user ID for system requests
+//   const getRandomUserId = () => {
+//     const chars = '0123456789';
+//     let result = '';
+//     for (let i = 0; i < 6; i++) {
+//       result += chars.charAt(Math.floor(Math.random() * chars.length));
+//     }
+//     return `${result}`;
+//   };
+  
+// useEffect(() => {
+//   if (s.status === "ACTIVE" && !s.acceptedBy) {
+    
+//     // ✅ Use expiresAt from backend instead of createdAt
+//     const expiryTime = new Date(s.expiresAt).getTime();
+//     const currentTime = new Date().getTime();
+// let remaining = Math.floor((expiryTime - currentTime) / 1000);
+
+// if (!remaining || remaining < 0) {
+//   remaining = 600; // fallback 10 min
+// }
+//     setTimeLeft(remaining);
+//     setIsExpired(remaining === 0);
+
+//     if (remaining > 0) {
+//       const timer = setInterval(() => {
+//         setTimeLeft(prev => {
+//           if (prev <= 1) {
+//             clearInterval(timer);
+//             setIsExpired(true);
+//             loadAllData();
+//             return 0;
+//           }
+//           return prev - 1;
+//         });
+//       }, 1000);
+
+//       return () => clearInterval(timer);
+//     }
+
+//   } else {
+//     setTimeLeft(0);
+
+//     setIsExpired(
+//       s.status === "EXPIRED" ||
+//       (s.status === "ACTIVE" &&
+//         !s.acceptedBy &&
+//         new Date(s.expiresAt).getTime() < new Date().getTime())
+//     );
+//   }
+
+// }, [s.expiresAt, s.status, s.acceptedBy]);
+
+//  if (s.status === "COMPLETED") {
+//   return null;
+// }
+
+// if (s.status === "EXPIRED") {
+//   return null;
+// }
+
+//   const formatTime = (seconds) => {
+//     const mins = Math.floor(seconds / 60);
+//     const secs = seconds % 60;
+//     return `${mins}:${secs.toString().padStart(2, '0')}`;
+//   };
+
+//   const getStatusDisplay = () => {
+//     switch(s.status) {
+//       case "ACCEPTED":
+//         return { text: "ACCEPTED ⚡", color: "bg-blue-500/10 text-blue-500 border border-blue-500/20" };
+//       case "PAYMENT_SUBMITTED":
+//         return { text: "PROOF SUBMITTED 📸", color: "bg-yellow-500/10 text-yellow-500 border border-yellow-500/20" };
+//       default:
+//         return { text: "ACTIVE", color: "bg-[#00F5A0]/10 text-[#00F5A0] border border-[#00F5A0]/20" };
+//     }
+//   };
+
+//   const statusDisplay = getStatusDisplay();
+
+//   const downloadQR = () => {
+//     const imageUrl = `https://cpay-backend.onrender.com${s.image}`;
+//     const link = document.createElement('a');
+//     link.href = imageUrl;
+//     link.download = `QR-${s.amount}-${s._id.slice(-4)}.png`;
+//     link.target = '_blank';
+//     document.body.appendChild(link);
+//     link.click();
+//     document.body.removeChild(link);
+    
+//     toast.success('QR Code Downloaded!', {
+//       duration: 3000,
+//       icon: '📥',
+//       style: {
+//         background: '#00F5A0',
+//         color: '#051510',
+//       }
+//     });
+//   };
+
+//   // Card style - सगळ्यासाठी same
+//   const getCardStyle = () => {
+//     return "border border-white/10"; // सगळ्यासाठी समान style
+//   };
+
+//   const handleAccept = async () => {
+//     if (isExpired) {
+//       toast.error(
+//         <div className="flex items-center gap-2">
+//           <Clock size={20} className="text-red-500" />
+//           <div>
+//             <div className="font-bold">Request Expired!</div>
+//             <div className="text-xs">This request is no longer available</div>
+//           </div>
+//         </div>,
+//         { duration: 4000 }
+//       );
+//       return;
+//     }
+
+//     if (!walletActivated) {
+//       toast(
+//         <div 
+//           className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-2 rounded-lg transition-all"
+//           onClick={() => {
+//             toast.dismiss();
+//             onActivateWallet();
+//           }}
+//         >
+//           <div className="bg-yellow-500/20 p-2 rounded-full">
+//             <AlertCircle size={24} className="text-yellow-500" />
+//           </div>
+//           <div className="flex-1">
+//             <div className="font-bold text-yellow-500">Wallet Not Activated!</div>
+//             <div className="text-xs text-gray-400 mt-1">Click here to activate your wallet now</div>
+//           </div>
+//           <div className="bg-yellow-500/20 p-2 rounded-full">
+//             <ArrowRight size={20} className="text-yellow-500" />
+//           </div>
+//         </div>,
+//         { 
+//           duration: 8000,
+//           style: {
+//             background: '#0A1F1A',
+//             color: 'white',
+//             border: '1px solid #eab308/20',
+//             padding: '12px',
+//           },
+//           icon: null
+//         }
+//       );
+//       return;
+//     }
+
+//     if (!acceptTermsAccepted) {
+//       toast.error(
+//         <div className="flex items-center gap-2">
+//           <AlertCircle size={20} className="text-red-500" />
+//           <div>
+//             <div className="font-bold">Terms Not Accepted!</div>
+//             <div className="text-xs">Please accept the terms and conditions first</div>
+//           </div>
+//         </div>,
+//         { 
+//           duration: 4000,
+//           style: {
+//             background: '#0A1F1A',
+//             color: 'white',
+//             border: '1px solid #ef4444/20'
+//           }
+//         }
+//       );
+//       return;
+//     }
+    
+//     try {
+//       const result = await acceptRequest(s._id);
+      
+//       // System request साठी special message नको, normal message पाठवा
+//       toast.success(
+//         <div className="flex items-center gap-2">
+//           <CheckCircle size={20} className="text-[#00F5A0]" />
+//           <div>
+//             <div className="font-bold">Request Accepted! 🎯</div>
+//             <div className="text-xs">You have 10 minutes to complete the payment</div>
+//           </div>
+//         </div>,
+//         { duration: 5000 }
+//       );
+      
+//       loadAllData();
+//     } catch (error) {
+//       console.error("Error accepting request:", error);
+//       toast.error(
+//         <div className="flex items-center gap-2">
+//           <AlertCircle size={20} className="text-red-500" />
+//           <div>
+//             <div className="font-bold">Failed to Accept!</div>
+//             <div className="text-xs">{error.message || "Something went wrong"}</div>
+//           </div>
+//         </div>,
+//         { duration: 4000 }
+//       );
+//     }
+//   };
+
+//   // Get created by text - system request साठी random user ID
+//   const getCreatedByText = () => {
+//     if (isSystemRequest) {
+//       return `${getRandomUserId()}`;
+//     }
+//     return s.user?.userId || `${s.user?._id?.slice(-6)}`;
+//   };
+
+//   return (
+//     <div className={`bg-[#0A1F1A] ${getCardStyle()} p-5 rounded-[2rem] relative flex flex-col h-full hover:border-white/20 transition-all`}>
+      
+//       {/* Status Badge and Timer */}
+//       <div className="flex items-center gap-2 mb-3">
+//         <div className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-full ${statusDisplay.color}`}>
+//           {statusDisplay.text}
+//         </div>
+        
+//         {s.status === "ACTIVE" && !s.acceptedBy && (
+//           <div className={`${timeLeft < 60 ? 'bg-red-500/20 text-red-500' : 'bg-yellow-500/20 text-yellow-500'} text-[8px] font-black px-2 py-1.5 rounded-full flex items-center gap-1 border border-yellow-500/20`}>
+//             <Clock size={10} />
+//             {formatTime(timeLeft)}
+//           </div>
+//         )}
+//       </div>
+      
+//       {/* QR Code Image */}
+//       <div className="relative mb-3">
+//         <div className="bg-white p-3 rounded-2xl w-fit mx-auto shadow-lg">
+//           <img 
+//             src={`https://cpay-backend.onrender.com${s.image}`} 
+//             className="w-28 h-28 md:w-32 md:h-32 object-contain" 
+//             alt="QR" 
+//           />
+//         </div>
+//       </div>
+      
+//       {/* Download QR Button */}
+//       <button
+//         onClick={downloadQR}
+//         className="mb-4 w-full bg-white/5 hover:bg-[#00F5A0]/10 border border-white/10 rounded-xl py-2 px-3 flex items-center justify-center gap-2 transition-all group"
+//       >
+//         <UploadCloud size={16} className="text-[#00F5A0] group-hover:scale-110 transition-transform" />
+//         <span className="text-xs font-bold text-gray-400 group-hover:text-[#00F5A0]">DOWNLOAD QR</span>
+//       </button>
+      
+//       {/* Amount */}
+//       <h3 className="text-2xl font-black text-center mb-1 text-white">
+//         ₹{s.amount}
+//       </h3>
+      
+//       {/* Created By - सगळ्यांसाठी एकसारखं दिसेल */}
+//       <p className="text-center text-[10px] text-gray-500 font-bold mb-3 italic uppercase bg-white/5 py-1.5 px-3 rounded-full mx-auto">
+//         Created by: {getCreatedByText()}
+//       </p>
+
+//       {/* Auto Confirm Info - फक्त auto request साठी */}
+//       {s.status === "PAYMENT_SUBMITTED" && isAutoRequest && (
+//         <div className="mb-3 p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+          
+//         </div>
+//       )}
+
+//       {/* Accepted By Section */}
+//       {s.acceptedBy && (
+//         <div className="mb-4 p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
+//           <p className="text-center text-[10px] text-blue-400 font-bold uppercase mb-2 tracking-wider">
+//             ⚡ ACCEPTED BY
+//           </p>
+//           <div className="flex items-center justify-center gap-3">
+//             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-black text-sm shadow-lg">
+//               {s.acceptedBy.name?.charAt(0) || s.acceptedBy.userId?.charAt(0) || '?'}
+//             </div>
+//             <div>
+//               <p className="text-sm font-bold text-blue-400">
+//                 {s.acceptedBy.name || s.acceptedBy.userId || `User ${s.acceptedBy._id?.slice(-6)}`}
+//               </p>
+//               <p className="text-[8px] text-gray-500">Accepted at: {new Date(s.acceptedAt).toLocaleTimeString()}</p>
+//             </div>
+//           </div>
+//         </div>
+//       )}
+
+//       {/* Action Buttons */}
+//       <div className="mt-auto space-y-2">
+//         {isOwner ? (
+//           s.status === "PAYMENT_SUBMITTED" ? (
+//             <div className="space-y-2">
+//               <button 
+//                 onClick={() => window.open(`https://cpay-backend.onrender.com${s.paymentScreenshot}`)} 
+//                 className="w-full text-[#00F5A0] text-xs font-bold underline py-2 hover:text-[#00d88c] transition-colors"
+//               >
+//                 👁️ VIEW PROOF
+//               </button>
+//               {!isAutoRequest && (
+//                 <button 
+//                   onClick={() => confirmRequest(s._id).then(loadAllData)} 
+//                   className="w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all"
+//                 >
+//                   ✅ CONFIRM RECEIPT
+//                 </button>
+//               )}
+//             </div>
+//           ) : s.status === "ACTIVE" && !s.acceptedBy ? (
+//             <button 
+//               onClick={() => handleCancelRequest(s._id)}
+//               className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-black text-sm hover:bg-red-500/30 transition-all border border-red-500/20"
+//             >
+//               ✕ CANCEL REQUEST
+//             </button>
+//           ) : null
+//         ) : (
+//           <>
+// {s.status === "ACTIVE" && !isOwner && (
+//                 <button 
+//                 onClick={handleAccept}
+//                 className={`w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black italic text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all ${
+//                   (!walletActivated || !acceptTermsAccepted) ? "opacity-50 cursor-not-allowed" : ""
+//                 }`}
+//                 disabled={!walletActivated || !acceptTermsAccepted}
+//               >
+//                 ⚡ ACCEPT & PAY
+//               </button>
+//             )}
+//           </>
+//         )}
+        
+//         {String(s.acceptedBy?._id) === String(user._id) && s.status === "ACCEPTED" && (
+//           <button 
+//             onClick={() => setSelectedScanner(s._id)} 
+//             className="w-full bg-gradient-to-r from-blue-500 to-purple-500 text-white py-3 rounded-xl font-black text-sm hover:shadow-lg hover:shadow-blue-500/20 transition-all"
+//           >
+//             📸 UPLOAD SCREENSHOT
+//           </button>
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+
 // RequestCard Component - System request normal UI सह
 const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelRequest, walletActivated, acceptTermsAccepted, onActivateWallet }) => {
   // ✅ System request असल्यास (user = null) isOwner false
   // const isOwner = s.user ? String(s.user?._id) === String(user._id) : false;
 
-// RequestCard कंपोनेंटमध्ये
-const getUserId = (u) => {
-  if (!u) return null;
-  if (typeof u === "string") return u;
-  return u._id;
-};
+  // RequestCard कंपोनेंटमध्ये
+  const getUserId = (u) => {
+    if (!u) return null;
+    if (typeof u === "string") return u;
+    return u._id;
+  };
 
-const isOwner = String(getUserId(s.user)) === String(user._id);
-const isSystemRequest = !s.user;
+  const isOwner = String(getUserId(s.user)) === String(user._id);
+  const isSystemRequest = !s.user;
   // const isSystemRequest = !s.user; // user = null म्हणजे system request
   const isAutoRequest = s.isAutoRequest || false;
   const [timeLeft, setTimeLeft] = useState(600);
   const [isExpired, setIsExpired] = useState(false);
+
+  // ✅ NEW: Screenshot management states (added without affecting existing)
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [screenshots, setScreenshots] = useState([]);
+  const [selectedScreenshotIndex, setSelectedScreenshotIndex] = useState(0);
+  const [updateReason, setUpdateReason] = useState("");
+  const [uploading, setUploading] = useState(false);
+
+  // ✅ NEW: Fetch screenshots function
+  const fetchScreenshots = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/scanner/screenshots/${s._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.screenshots) {
+        setScreenshots(data.screenshots);
+      }
+    } catch (error) {
+      console.error("Error fetching screenshots:", error);
+    }
+  };
+
+  // ✅ NEW: Handle screenshot update
+  const handleUpdateScreenshot = async (file, index) => {
+    if (!file) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("scannerId", s._id);
+    formData.append("screenshotIndex", index);
+    formData.append("reason", updateReason || "Screenshot updated");
+    formData.append("screenshot", file);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/scanner/update-screenshot`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Screenshot updated successfully!");
+        fetchScreenshots();
+        loadAllData();
+        setUpdateReason("");
+      } else {
+        toast.error(data.message || "Failed to update screenshot");
+      }
+    } catch (error) {
+      console.error("Error updating screenshot:", error);
+      toast.error("Failed to update screenshot");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // ✅ NEW: Open screenshot modal
+  const openScreenshotModal = async () => {
+    await fetchScreenshots();
+    setShowScreenshotModal(true);
+  };
   
   // Generate random user ID for system requests
   const getRandomUserId = () => {
@@ -1939,56 +2670,56 @@ const isSystemRequest = !s.user;
     return `${result}`;
   };
   
-useEffect(() => {
-  if (s.status === "ACTIVE" && !s.acceptedBy) {
-    
-    // ✅ Use expiresAt from backend instead of createdAt
-    const expiryTime = new Date(s.expiresAt).getTime();
-    const currentTime = new Date().getTime();
-let remaining = Math.floor((expiryTime - currentTime) / 1000);
+  useEffect(() => {
+    if (s.status === "ACTIVE" && !s.acceptedBy) {
+      
+      // ✅ Use expiresAt from backend instead of createdAt
+      const expiryTime = new Date(s.expiresAt).getTime();
+      const currentTime = new Date().getTime();
+      let remaining = Math.floor((expiryTime - currentTime) / 1000);
 
-if (!remaining || remaining < 0) {
-  remaining = 600; // fallback 10 min
-}
-    setTimeLeft(remaining);
-    setIsExpired(remaining === 0);
+      if (!remaining || remaining < 0) {
+        remaining = 600; // fallback 10 min
+      }
+      setTimeLeft(remaining);
+      setIsExpired(remaining === 0);
 
-    if (remaining > 0) {
-      const timer = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setIsExpired(true);
-            loadAllData();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      if (remaining > 0) {
+        const timer = setInterval(() => {
+          setTimeLeft(prev => {
+            if (prev <= 1) {
+              clearInterval(timer);
+              setIsExpired(true);
+              loadAllData();
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
 
-      return () => clearInterval(timer);
+        return () => clearInterval(timer);
+      }
+
+    } else {
+      setTimeLeft(0);
+
+      setIsExpired(
+        s.status === "EXPIRED" ||
+        (s.status === "ACTIVE" &&
+          !s.acceptedBy &&
+          new Date(s.expiresAt).getTime() < new Date().getTime())
+      );
     }
 
-  } else {
-    setTimeLeft(0);
+  }, [s.expiresAt, s.status, s.acceptedBy]);
 
-    setIsExpired(
-      s.status === "EXPIRED" ||
-      (s.status === "ACTIVE" &&
-        !s.acceptedBy &&
-        new Date(s.expiresAt).getTime() < new Date().getTime())
-    );
+  if (s.status === "COMPLETED") {
+    return null;
   }
 
-}, [s.expiresAt, s.status, s.acceptedBy]);
-
- if (s.status === "COMPLETED") {
-  return null;
-}
-
-if (s.status === "EXPIRED") {
-  return null;
-}
+  if (s.status === "EXPIRED") {
+    return null;
+  }
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -2197,6 +2928,33 @@ if (s.status === "EXPIRED") {
         </div>
       )}
 
+      {/* ✅ NEW: Screenshot Preview - Show if multiple screenshots */}
+      {s.paymentScreenshots && s.paymentScreenshots.length > 0 && (
+        <div className="mb-3">
+          <div className="flex items-center gap-1 mb-2">
+            <Camera size={12} className="text-[#00F5A0]" />
+            <span className="text-[8px] text-gray-400">
+              {s.paymentScreenshots.filter(ss => ss.isActive).length} Screenshot(s)
+            </span>
+          </div>
+          <div className="flex gap-1 overflow-x-auto pb-1">
+            {s.paymentScreenshots.filter(ss => ss.isActive).map((ss, idx) => (
+              <div 
+                key={idx} 
+                className="relative w-12 h-12 rounded-lg overflow-hidden border border-white/10 cursor-pointer hover:border-[#00F5A0] transition-all"
+                onClick={() => window.open(`https://cpay-backend.onrender.com${ss.url}`)}
+              >
+                <img 
+                  src={`https://cpay-backend.onrender.com${ss.url}`} 
+                  alt={`screenshot-${idx}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Accepted By Section */}
       {s.acceptedBy && (
         <div className="mb-4 p-3 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
@@ -2247,8 +3005,8 @@ if (s.status === "EXPIRED") {
           ) : null
         ) : (
           <>
-{s.status === "ACTIVE" && !isOwner && (
-                <button 
+            {s.status === "ACTIVE" && !isOwner && (
+              <button 
                 onClick={handleAccept}
                 className={`w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black italic text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all ${
                   (!walletActivated || !acceptTermsAccepted) ? "opacity-50 cursor-not-allowed" : ""
@@ -2269,10 +3027,198 @@ if (s.status === "EXPIRED") {
             📸 UPLOAD SCREENSHOT
           </button>
         )}
+
+        {/* ✅ NEW: UPDATE SCREENSHOT button - appears after proof is submitted */}
+        {String(s.acceptedBy?._id) === String(user._id) && s.status === "PAYMENT_SUBMITTED" && (
+          <button 
+            onClick={openScreenshotModal}
+            className="w-full bg-yellow-500/20 text-yellow-500 py-2 rounded-xl font-black text-xs hover:bg-yellow-500/30 transition-all border border-yellow-500/20 flex items-center justify-center gap-2"
+          >
+            <Camera size={14} />
+            UPDATE SCREENSHOT
+          </button>
+        )}
+      </div>
+
+      {/* ✅ NEW: Screenshot Management Modal */}
+      {showScreenshotModal && (
+        <ScreenshotModal
+          scanner={s}
+          screenshots={screenshots}
+          onClose={() => setShowScreenshotModal(false)}
+          onUpdate={handleUpdateScreenshot}
+          uploading={uploading}
+          updateReason={updateReason}
+          setUpdateReason={setUpdateReason}
+          fetchScreenshots={fetchScreenshots}
+        />
+      )}
+    </div>
+  );
+};
+
+// ✅ NEW: Screenshot Modal Component (place this outside RequestCard, before SidebarLink component)
+const ScreenshotModal = ({ scanner, screenshots, onClose, onUpdate, uploading, updateReason, setUpdateReason, fetchScreenshots }) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large! Max 5MB");
+      return;
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+  };
+
+  const handleUpdate = () => {
+    if (!selectedFile) {
+      toast.error("Please select a new screenshot");
+      return;
+    }
+    onUpdate(selectedFile, selectedIndex);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[500] p-4 backdrop-blur-sm">
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-[#0A1F1A] p-6 border-b border-white/10 flex justify-between items-center">
+          <h3 className="text-xl font-black text-[#00F5A0]">Manage Screenshots</h3>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Screenshot Gallery */}
+          <div>
+            <h4 className="text-sm font-bold mb-3">Uploaded Screenshots</h4>
+            <div className="grid grid-cols-3 gap-3">
+              {screenshots.filter(s => s.isActive).map((ss, idx) => (
+                <div 
+                  key={idx}
+                  className={`relative rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${
+                    selectedIndex === idx ? 'border-[#00F5A0]' : 'border-transparent'
+                  }`}
+                  onClick={() => setSelectedIndex(idx)}
+                >
+                  <img 
+                    src={`https://cpay-backend.onrender.com${ss.url}`}
+                    alt={`screenshot-${idx}`}
+                    className="w-full h-24 object-cover"
+                  />
+                  <div className="absolute top-1 right-1 bg-black/60 text-[8px] px-1 rounded">
+                    {new Date(ss.uploadedAt).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+              {screenshots.filter(s => s.isActive).length === 0 && (
+                <div className="col-span-3 text-center py-8 text-gray-500">
+                  No screenshots uploaded yet
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Update Form */}
+          <div className="border-t border-white/10 pt-6">
+            <h4 className="text-sm font-bold mb-3">Update Screenshot</h4>
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+
+            {!previewUrl ? (
+              <button
+                onClick={() => fileInputRef.current.click()}
+                className="w-full border-2 border-dashed border-white/10 rounded-xl py-8 text-center hover:border-[#00F5A0]/30 transition-all group"
+              >
+                <Camera size={32} className="mx-auto mb-2 text-gray-500 group-hover:text-[#00F5A0]" />
+                <p className="text-sm text-gray-400">Click to select new screenshot</p>
+                <p className="text-[8px] text-gray-600 mt-1">Max 5MB (JPEG, PNG)</p>
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative">
+                  <img
+                    src={previewUrl}
+                    alt="preview"
+                    className="w-full h-48 object-contain bg-black/40 rounded-xl border border-[#00F5A0]"
+                  />
+                  <button
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Reason for update (optional)"
+                  value={updateReason}
+                  onChange={(e) => setUpdateReason(e.target.value)}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#00F5A0]"
+                />
+
+                <button
+                  onClick={handleUpdate}
+                  disabled={uploading}
+                  className="w-full bg-[#00F5A0] text-black py-3 rounded-xl font-black text-sm hover:bg-[#00d88c] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {uploading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader size={16} className="animate-spin" />
+                      UPDATING...
+                    </span>
+                  ) : (
+                    "UPDATE SCREENSHOT"
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">
+            <p className="text-blue-400 text-xs font-bold mb-2">📸 Screenshot Guidelines:</p>
+            <ul className="text-[10px] text-gray-400 list-disc list-inside space-y-1">
+              <li>You can upload multiple screenshots</li>
+              <li>Update any screenshot by selecting it and uploading a new one</li>
+              <li>All previous versions are saved in history</li>
+              <li>Make sure the screenshot is clear and shows the payment details</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );
 };
+
+// ==================== UPDATE DepositPage COMPONENT - Add handleSubmit function ====================
 
 const DepositPage = ({ 
   paymentMethods, 
@@ -2286,9 +3232,22 @@ const DepositPage = ({
   handleDepositSubmit, 
   actionLoading,
   setActiveTab, 
-  loadAllData 
+  loadAllData,
+  // Timer props
+  showDepositTimer,
+  depositTimeLeft,
+  depositVerifying,
+  setShowDepositTimer,
+  setDepositTimeLeft,
+  setDepositVerifying
 }) => {
   const usdtMethods = paymentMethods.filter(m => m.method?.includes("USDT"));
+  
+  // ==================== ADD THESE STATES INSIDE DepositPage ====================
+  const [myDeposits, setMyDeposits] = useState([]);
+  const [selectedDeposit, setSelectedDeposit] = useState(null);
+  const [showDepositScreenshotModal, setShowDepositScreenshotModal] = useState(false);
+  const [depositUpdateReason, setDepositUpdateReason] = useState("");
   
   // Local state for timer
   const [showTimer, setShowTimer] = useState(false);
@@ -2301,7 +3260,41 @@ const DepositPage = ({
   const [showPendingMessage, setShowPendingMessage] = useState(false);
   
   const fileInputRef = useRef(null);
-
+  
+ // ==================== FIX: loadMyDeposits function ====================
+const loadMyDeposits = async () => {
+  try {
+    const { getMyDeposits } = await import("../services/apiService");
+    const deposits = await getMyDeposits();
+    setMyDeposits(Array.isArray(deposits) ? deposits : []);
+  } catch (error) {
+    console.error("Error loading deposits:", error);
+    setMyDeposits([]);
+  }
+};
+  
+  // ==================== ADD THIS USEFFECT TO LOAD DEPOSITS ON MOUNT ====================
+  useEffect(() => {
+    loadMyDeposits();
+  }, []);
+  
+  // ==================== ADD SCREENSHOT UPDATE HANDLER ====================
+  const handleUpdateDepositScreenshot = async (depositId, file, reason) => {
+    try {
+      const { updateDepositScreenshot } = await import("../services/apiService");
+      const res = await updateDepositScreenshot(depositId, file, reason);
+      if (res.message) {
+        toast.success("Screenshot updated successfully!");
+        loadMyDeposits();
+        setShowDepositScreenshotModal(false);
+        return true;
+      }
+    } catch (error) {
+      toast.error("Failed to update screenshot");
+      return false;
+    }
+  };
+  
   // Timer effect - counts down from 300 to 0
   useEffect(() => {
     let timerInterval;
@@ -2384,7 +3377,7 @@ const DepositPage = ({
     });
   };
 
-  // Handle form submission
+  // ==================== ADD THIS MISSING handleSubmit FUNCTION ====================
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -2445,281 +3438,368 @@ const DepositPage = ({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
-      <h2 className="text-xl font-black italic text-[#00F5A0] mb-8 uppercase tracking-widest">Add Funds</h2>
-      
-      {/* Payment Methods Selection */}
-      <div className="grid grid-cols-1 gap-3 mb-6">
-        {usdtMethods.length > 0 ? (
-          usdtMethods.map(m => (
-            <button 
-              type="button"
-              key={m._id} 
-              onClick={() => setSelectedMethod(m)} 
-              className={`w-full p-4 rounded-xl border text-left transition-all ${
-                selectedMethod?._id === m._id 
-                  ? "border-[#00F5A0] bg-[#00F5A0]/10" 
-                  : "border-white/10 bg-black/20 hover:bg-black/40"
-              }`}
-              disabled={showTimer}
-            >
-              <p className="font-bold text-sm">{m.method}</p>
-              {m.details?.network && (
-                <p className="text-[10px] text-gray-500 mt-1">Network: {m.details.network}</p>
-              )}
-            </button>
-          ))
-        ) : (
-          <div className="p-4 bg-yellow-500/10 rounded-xl text-yellow-500 text-xs text-center">
-            No payment methods available
-          </div>
-        )}
-      </div>
+    <div className="space-y-6">
 
-      {/* Selected Method Details */}
-      {selectedMethod && selectedMethod.method.includes("USDT") && (
-        <div className="p-4 bg-white/5 rounded-xl mb-6 border border-white/5">
-          <p className="text-[#00F5A0] font-black mb-3 uppercase text-xs">Payment Details:</p>
-          
-          {/* QR Code */}
-          <div className="flex justify-center mb-4">
-            <div className="bg-white p-3 rounded-xl">
-              <QRCode 
-                value={selectedMethod.details.address}
-                size={150}
-                bgColor="#ffffff"
-                fgColor="#000000"
-                level="H"
-              />
-            </div>
-          </div>
-          
-          {/* Address with Copy */}
-          <div className="mb-3">
-            <p className="text-[10px] text-gray-500 mb-1">Address:</p>
-            <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg">
-              <p className="text-xs text-white/80 font-mono break-all flex-1">
-                {selectedMethod.details.address}
-              </p>
+
+      {/* DEPOSIT FORM */}
+      <form onSubmit={handleSubmit} className="max-w-xl mx-auto bg-[#0A1F1A] border border-white/10 p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem]">
+        <h2 className="text-xl font-black italic text-[#00F5A0] mb-8 uppercase tracking-widest">Add Funds</h2>
+        
+        {/* Payment Methods Selection */}
+        <div className="grid grid-cols-1 gap-3 mb-6">
+          {usdtMethods.length > 0 ? (
+            usdtMethods.map(m => (
               <button 
                 type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(selectedMethod.details.address);
-                  toast.success("Address copied!", { duration: 2000 });
-                }}
-                className="bg-[#00F5A0]/10 p-2 rounded-lg hover:bg-[#00F5A0]/20 transition-colors flex-shrink-0"
+                key={m._id} 
+                onClick={() => setSelectedMethod(m)} 
+                className={`w-full p-4 rounded-xl border text-left transition-all ${
+                  selectedMethod?._id === m._id 
+                    ? "border-[#00F5A0] bg-[#00F5A0]/10" 
+                    : "border-white/10 bg-black/20 hover:bg-black/40"
+                }`}
+                disabled={showTimer}
               >
-                <Copy size={16} className="text-[#00F5A0]" />
+                <p className="font-bold text-sm">{m.method}</p>
+                {m.details?.network && (
+                  <p className="text-[10px] text-gray-500 mt-1">Network: {m.details.network}</p>
+                )}
               </button>
+            ))
+          ) : (
+            <div className="p-4 bg-yellow-500/10 rounded-xl text-yellow-500 text-xs text-center">
+              No payment methods available
             </div>
-          </div>
-          
-          {/* Network */}
-          <div className="mb-3">
-            <p className="text-[10px] text-gray-500 mb-1">Network:</p>
-            <p className="text-xs text-white/80 bg-black/40 p-2 rounded-lg">
-              {selectedMethod.details.network}
-            </p>
-          </div>
-          
-          {/* Rate Display */}
-          <div className="mt-4 pt-3 border-t border-white/10">
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Rate:</span>
-              <span className="font-bold text-[#00F5A0]">1 USDT = ₹95</span>
-            </div>
-            {depositData.amount && (
-              <div className="flex justify-between items-center mt-2 text-base">
-                <span className="text-gray-400">You'll get:</span>
-                <span className="font-black text-white">
-                  ₹{(Number(depositData.amount) * 95).toLocaleString()}
-                </span>
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
 
-      {/* ⏱️ 5-MINUTE TIMER DISPLAY */}
-      {showTimer && (
-        <div className="mb-6 p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              {isVerifying && timeLeft > 0 ? (
-                <Loader size={16} className="animate-spin text-yellow-500" />
-              ) : showPendingMessage ? (
-                <Clock size={16} className="text-orange-500" />
-              ) : (
-                <CheckCircle size={16} className="text-green-500" />
-              )}
-              <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
-                {timeLeft > 0 
-                  ? "AWAITING ADMIN APPROVAL" 
-                  : showPendingMessage 
-                    ? "PENDING ADMIN APPROVAL"
-                    : "PROCESSING COMPLETE"}
-              </span>
-            </div>
-            {timeLeft > 0 && (
-              <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
-                <span className="text-sm font-black text-yellow-500 font-mono">
-                  {formatTime(timeLeft)}
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* PROGRESS BAR */}
-          {timeLeft > 0 && (
-            <>
-              <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
-                <div 
-                  className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000 ease-linear"
-                  style={{ 
-                    width: `${progressPercentage}%`,
-                  }}
+        {/* Selected Method Details */}
+        {selectedMethod && selectedMethod.method.includes("USDT") && (
+          <div className="p-4 bg-white/5 rounded-xl mb-6 border border-white/5">
+            <p className="text-[#00F5A0] font-black mb-3 uppercase text-xs">Payment Details:</p>
+            
+            {/* QR Code */}
+            <div className="flex justify-center mb-4">
+              <div className="bg-white p-3 rounded-xl">
+                <QRCode 
+                  value={selectedMethod.details.address}
+                  size={150}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="H"
                 />
               </div>
-              
-              <p className="text-[10px] text-gray-500 mt-2 text-center">
-                ⏱️ Admin will verify within {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes
+            </div>
+            
+            {/* Address with Copy */}
+            <div className="mb-3">
+              <p className="text-[10px] text-gray-500 mb-1">Address:</p>
+              <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg">
+                <p className="text-xs text-white/80 font-mono break-all flex-1">
+                  {selectedMethod.details.address}
+                </p>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedMethod.details.address);
+                    toast.success("Address copied!", { duration: 2000 });
+                  }}
+                  className="bg-[#00F5A0]/10 p-2 rounded-lg hover:bg-[#00F5A0]/20 transition-colors flex-shrink-0"
+                >
+                  <Copy size={16} className="text-[#00F5A0]" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Network */}
+            <div className="mb-3">
+              <p className="text-[10px] text-gray-500 mb-1">Network:</p>
+              <p className="text-xs text-white/80 bg-black/40 p-2 rounded-lg">
+                {selectedMethod.details.network}
               </p>
-            </>
-          )}
+            </div>
+            
+            {/* Rate Display */}
+            <div className="mt-4 pt-3 border-t border-white/10">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-400">Rate:</span>
+                <span className="font-bold text-[#00F5A0]">1 USDT = ₹95</span>
+              </div>
+              {depositData.amount && (
+                <div className="flex justify-between items-center mt-2 text-base">
+                  <span className="text-gray-400">You'll get:</span>
+                  <span className="font-black text-white">
+                    ₹{(Number(depositData.amount) * 95).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ⏱️ 5-MINUTE TIMER DISPLAY */}
+        {showTimer && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 rounded-xl border border-yellow-500/20">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                {isVerifying && timeLeft > 0 ? (
+                  <Loader size={16} className="animate-spin text-yellow-500" />
+                ) : showPendingMessage ? (
+                  <Clock size={16} className="text-orange-500" />
+                ) : (
+                  <CheckCircle size={16} className="text-green-500" />
+                )}
+                <span className="text-xs font-bold text-yellow-500 uppercase tracking-wider">
+                  {timeLeft > 0 
+                    ? "AWAITING ADMIN APPROVAL" 
+                    : showPendingMessage 
+                      ? "PENDING ADMIN APPROVAL"
+                      : "PROCESSING COMPLETE"}
+                </span>
+              </div>
+              {timeLeft > 0 && (
+                <div className="bg-yellow-500/20 px-3 py-1 rounded-full">
+                  <span className="text-sm font-black text-yellow-500 font-mono">
+                    {formatTime(timeLeft)}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            {/* PROGRESS BAR */}
+            {timeLeft > 0 && (
+              <>
+                <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden mb-2">
+                  <div 
+                    className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all duration-1000 ease-linear"
+                    style={{ 
+                      width: `${progressPercentage}%`,
+                    }}
+                  />
+                </div>
+                
+                <p className="text-[10px] text-gray-500 mt-2 text-center">
+                  ⏱️ Admin will verify within {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')} minutes
+                </p>
+              </>
+            )}
+            
+            {/* PENDING MESSAGE AFTER 5 MINUTES */}
+            {showPendingMessage && (
+              <div className="mt-3 p-3 bg-orange-500/20 rounded-lg border border-orange-500/30">
+                <p className="text-xs text-orange-400 font-bold text-center flex items-center justify-center gap-2">
+                  <Clock size={16} />
+                  Your deposit is still pending. Admin approval will take some more time.
+                </p>
+                <p className="text-[10px] text-orange-400/70 text-center mt-2">
+                  You'll be notified once approved. Check back later.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Amount Input */}
+        <div className="mb-3">
+          <label className="text-xs text-gray-500 mb-1 block">Amount (USDT) *</label>
+          <input 
+            type="number" 
+            value={depositData.amount} 
+            onChange={e => setDepositData({ ...depositData, amount: e.target.value })} 
+            placeholder="Enter amount in USDT" 
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0] transition-all" 
+            disabled={showTimer}
+            min="1"
+            step="0.01"
+            required
+          />
+        </div>
+        
+        {/* Transaction Hash Input */}
+        <div className="mb-4">
+          <label className="text-xs text-gray-500 mb-1 block">Transaction Hash / TXID *</label>
+          <input 
+            type="text" 
+            value={txHash} 
+            onChange={e => setTxHash(e.target.value)} 
+            placeholder="Enter transaction hash" 
+            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold outline-none focus:border-[#00F5A0] transition-all" 
+            disabled={showTimer}
+            required
+          />
+        </div>
+        
+        {/* File Upload with Preview */}
+        <div className="mb-6">
+          <label className="text-xs text-gray-500 mb-1 block">Payment Screenshot *</label>
           
-          {/* PENDING MESSAGE AFTER 5 MINUTES */}
-          {showPendingMessage && (
-            <div className="mt-3 p-3 bg-orange-500/20 rounded-lg border border-orange-500/30">
-              <p className="text-xs text-orange-400 font-bold text-center flex items-center justify-center gap-2">
-                <Clock size={16} />
-                Your deposit is still pending. Admin approval will take some more time.
-              </p>
-              <p className="text-[10px] text-orange-400/70 text-center mt-2">
-                You'll be notified once approved. Check back later.
+          <input 
+            ref={fileInputRef}
+            type="file" 
+            accept="image/*"
+            onChange={handleFileChange} 
+            className="hidden" 
+            id="screenshot-upload"
+            disabled={showTimer}
+          />
+          
+          <label 
+            htmlFor="screenshot-upload"
+            className={`block border-2 border-dashed rounded-xl py-6 text-center cursor-pointer font-bold text-sm transition-all ${
+              selectedFile 
+                ? "border-[#00F5A0] bg-[#00F5A0]/10" 
+                : "border-white/10 bg-black/40 hover:bg-black/60"
+            }`}
+          >
+            <UploadCloud size={32} className="mx-auto mb-2 text-[#00F5A0]" />
+            {selectedFileName || "Click to upload payment screenshot"}
+            <p className="text-[8px] text-gray-500 mt-1">Max file size: 5MB (JPEG, PNG)</p>
+          </label>
+          
+          {previewUrl && (
+            <div className="mt-3">
+              <div className="relative inline-block">
+                <img
+                  src={previewUrl}
+                  alt="Preview"
+                  className="w-32 h-32 object-cover rounded-lg border-2 border-[#00F5A0]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFile(null);
+                    setSelectedFileName("");
+                    setPreviewUrl(null);
+                    setDepositScreenshot(null);
+                    if (fileInputRef.current) {
+                      fileInputRef.current.value = "";
+                    }
+                  }}
+                  className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-all"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-xs text-[#00F5A0] mt-1">
+                {selectedFileName} ({(selectedFile.size / 1024).toFixed(2)} KB)
               </p>
             </div>
           )}
         </div>
+        
+        {/* Submit Button */}
+        <button 
+          type="submit"
+          className={`w-full py-5 rounded-2xl font-black italic transition-all ${
+            showTimer 
+              ? "bg-gray-700 text-gray-400 cursor-not-allowed" 
+              : "bg-[#00F5A0] text-black hover:bg-[#00d88c] active:scale-95"
+          }`}
+          disabled={actionLoading || showTimer}
+        >
+          {actionLoading ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader size={16} className="animate-spin" />
+              PROCESSING...
+            </span>
+          ) : showTimer ? (
+            <span className="flex items-center justify-center gap-2">
+              <Clock size={16} />
+              {timeLeft > 0 ? `AWAITING ADMIN (${formatTime(timeLeft)})` : "PENDING ✓"}
+            </span>
+          ) : (
+            "SUBMIT DEPOSIT"
+          )}
+        </button>
+        
+        {/* Info Message */}
+        <p className="text-[10px] text-gray-500 text-center mt-4">
+          ⏱️ Deposits are manually verified by admin within 5 minutes
+        </p>
+      </form>
+            {/* MY DEPOSITS LIST SECTION */}
+      {myDeposits.length > 0 && (
+        <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] p-6">
+          <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Wallet size={18} className="text-[#00F5A0]" />
+            My Recent Deposits
+          </h3>
+          <div className="space-y-3">
+            {myDeposits.slice(0, 3).map(deposit => (
+              <div key={deposit._id} className="bg-black/40 border border-white/5 p-4 rounded-xl">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <span className={`text-[10px] font-black px-2 py-1 rounded-full ${
+                      deposit.status === 'approved' ? 'bg-green-500/10 text-green-500' :
+                      deposit.status === 'rejected' ? 'bg-red-500/10 text-red-500' :
+                      'bg-yellow-500/10 text-yellow-500'
+                    }`}>
+                      {deposit.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold">${deposit.amount} USDT</span>
+                </div>
+                <p className="text-[10px] text-gray-500 mb-2">TX: {deposit.txHash.slice(0, 20)}...</p>
+                
+                {/* Screenshot gallery preview */}
+                {deposit.paymentScreenshots && deposit.paymentScreenshots.length > 0 && (
+                  <div className="flex gap-1 mb-2">
+                    {deposit.paymentScreenshots.filter(s => s.isActive).slice(0, 3).map((ss, idx) => (
+                      <div 
+                        key={idx}
+                        className="w-8 h-8 rounded overflow-hidden border border-white/10 cursor-pointer"
+                        onClick={() => window.open(`https://cpay-backend.onrender.com${ss.url}`)}
+                      >
+                        <img src={`https://cpay-backend.onrender.com${ss.url}`} alt="screenshot" className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Show update button for pending deposits */}
+                {deposit.status === 'pending' && (
+                  <button
+                    onClick={() => {
+                      setSelectedDeposit(deposit);
+                      setShowDepositScreenshotModal(true);
+                    }}
+                    className="mt-2 w-full bg-yellow-500/20 text-yellow-500 py-2 rounded-lg text-xs font-bold hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Camera size={14} />
+                    UPDATE SCREENSHOT
+                  </button>
+                )}
+
+                {/* Show reject reason for rejected deposits */}
+                {deposit.status === 'rejected' && deposit.rejectReason && (
+                  <div className="mt-2 p-2 bg-red-500/10 rounded-lg">
+                    <p className="text-[10px] text-red-400">
+                      <span className="font-bold">Reason:</span> {deposit.rejectReason}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {/* Amount Input */}
-      <div className="mb-3">
-        <label className="text-xs text-gray-500 mb-1 block">Amount (USDT) *</label>
-        <input 
-          type="number" 
-          value={depositData.amount} 
-          onChange={e => setDepositData({ ...depositData, amount: e.target.value })} 
-          placeholder="Enter amount in USDT" 
-          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0] transition-all" 
-          disabled={showTimer}
-          min="1"
-          step="0.01"
-          required
+      {/* DEPOSIT SCREENSHOT MODAL */}
+      {showDepositScreenshotModal && selectedDeposit && (
+        <DepositScreenshotModal
+          deposit={selectedDeposit}
+          onClose={() => {
+            setShowDepositScreenshotModal(false);
+            setSelectedDeposit(null);
+            setDepositUpdateReason("");
+          }}
+          onUpdate={handleUpdateDepositScreenshot}
+          uploading={actionLoading}
+          updateReason={depositUpdateReason}
+          setUpdateReason={setDepositUpdateReason}
         />
-      </div>
-      
-      {/* Transaction Hash Input */}
-      <div className="mb-4">
-        <label className="text-xs text-gray-500 mb-1 block">Transaction Hash / TXID *</label>
-        <input 
-          type="text" 
-          value={txHash} 
-          onChange={e => setTxHash(e.target.value)} 
-          placeholder="Enter transaction hash" 
-          className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold outline-none focus:border-[#00F5A0] transition-all" 
-          disabled={showTimer}
-          required
-        />
-      </div>
-      
-      {/* File Upload with Preview */}
-      <div className="mb-6">
-        <label className="text-xs text-gray-500 mb-1 block">Payment Screenshot *</label>
-        
-        <input 
-          ref={fileInputRef}
-          type="file" 
-          accept="image/*"
-          onChange={handleFileChange} 
-          className="hidden" 
-          id="screenshot-upload"
-          disabled={showTimer}
-        />
-        
-        <label 
-          htmlFor="screenshot-upload"
-          className={`block border-2 border-dashed rounded-xl py-6 text-center cursor-pointer font-bold text-sm transition-all ${
-            selectedFile 
-              ? "border-[#00F5A0] bg-[#00F5A0]/10" 
-              : "border-white/10 bg-black/40 hover:bg-black/60"
-          }`}
-        >
-          <UploadCloud size={32} className="mx-auto mb-2 text-[#00F5A0]" />
-          {selectedFileName || "Click to upload payment screenshot"}
-          <p className="text-[8px] text-gray-500 mt-1">Max file size: 5MB (JPEG, PNG)</p>
-        </label>
-        
-        {previewUrl && (
-          <div className="mt-3">
-            <div className="relative inline-block">
-              <img
-                src={previewUrl}
-                alt="Preview"
-                className="w-32 h-32 object-cover rounded-lg border-2 border-[#00F5A0]"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedFile(null);
-                  setSelectedFileName("");
-                  setPreviewUrl(null);
-                  setDepositScreenshot(null);
-                  if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
-                  }
-                }}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-all"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-[#00F5A0] mt-1">
-              {selectedFileName} ({(selectedFile.size / 1024).toFixed(2)} KB)
-            </p>
-          </div>
-        )}
-      </div>
-      
-      {/* Submit Button */}
-      <button 
-        type="submit"
-        className={`w-full py-5 rounded-2xl font-black italic transition-all ${
-          showTimer 
-            ? "bg-gray-700 text-gray-400 cursor-not-allowed" 
-            : "bg-[#00F5A0] text-black hover:bg-[#00d88c] active:scale-95"
-        }`}
-        disabled={actionLoading || showTimer}
-      >
-        {actionLoading ? (
-          <span className="flex items-center justify-center gap-2">
-            <Loader size={16} className="animate-spin" />
-            PROCESSING...
-          </span>
-        ) : showTimer ? (
-          <span className="flex items-center justify-center gap-2">
-            <Clock size={16} />
-            {timeLeft > 0 ? `AWAITING ADMIN (${formatTime(timeLeft)})` : "PENDING ✓"}
-          </span>
-        ) : (
-          "SUBMIT DEPOSIT"
-        )}
-      </button>
-      
-      {/* Info Message */}
-      <p className="text-[10px] text-gray-500 text-center mt-4">
-        ⏱️ Deposits are manually verified by admin within 5 minutes
-      </p>
-    </form>
+      )}
+    </div>
   );
 };
 
