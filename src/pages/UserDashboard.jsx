@@ -125,7 +125,7 @@ const [activationStatus, setActivationStatus] = useState({
 
 // Timer states for deposit verification - moved to parent for persistence
 const [showDepositTimer, setShowDepositTimer] = useState(false);
-const [depositTimeLeft, setDepositTimeLeft] = useState(120); // 2 minutes
+const [depositTimeLeft, setDepositTimeLeft] = useState(300); // 5 minutes
 const [depositVerifying, setDepositVerifying] = useState(false);
   
     // Helper function to check if request is expired
@@ -388,7 +388,7 @@ useEffect(() => {
   if (savedDeposit) {
     const deposit = JSON.parse(savedDeposit);
     const elapsedSeconds = Math.floor((Date.now() - deposit.timestamp) / 1000);
-    const remaining = Math.max(0, 120 - elapsedSeconds);
+    const remaining = Math.max(0, 300 - elapsedSeconds);
     
     if (remaining > 0) {
       setShowDepositTimer(true);
@@ -986,7 +986,7 @@ const confirmActivation = async () => {
             : `For ₹${localInputLimit.toLocaleString()} daily limit`}
         </div>
         <div className="text-xs text-gray-400 mt-1">
-          After deposit submission, wallet will update in 2 minutes ⏱️
+          After deposit submission, wallet will update in 5 minutes ⏱️
         </div>
       </div>
     </div>,
