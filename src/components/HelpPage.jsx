@@ -3,10 +3,13 @@ import {
   HelpCircle, BookOpen, MessageCircle, FileText,
   Mail, Youtube, ChevronDown, ChevronUp, Copy,
   Wallet, ScanLine, Users, Zap, AlertCircle, CheckCircle, Clock,
-  Rocket, CreditCard, Smartphone, BarChart3, Shield, HeadphonesIcon
+  Rocket, CreditCard, Smartphone, BarChart3, Shield, HeadphonesIcon,
+  User,
+  ArrowRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import ChatBot from './ChatBot'; // ✅ Import ChatBot
+import { Link } from 'react-router-dom';
 
 const HelpPage = () => {
   const [expandedFaq, setExpandedFaq] = useState(null);
@@ -196,6 +199,19 @@ const HelpPage = () => {
         </div>
       </div>
 
+<div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-6 rounded-xl border border-blue-500/20">
+    <p className="text-sm mb-4">
+      Can't remember your User ID or PIN? We'll help you recover your account.
+    </p>
+    
+    <Link
+      to="/find-account"
+      className="inline-flex items-center gap-2 bg-[#00F5A0] text-[#051510] px-6 py-3 rounded-xl font-bold text-sm hover:shadow-[0_0_30px_rgba(0,245,160,0.3)] transition-all"
+    >
+      Find My Account
+      <ArrowRight size={16} />
+    </Link>
+  </div>
       {/* Quick Guides */}
       <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
         <h3 className="text-lg font-black italic mb-4 flex items-center gap-2">
@@ -288,52 +304,14 @@ const HelpPage = () => {
         </div>
       </div>
 
-      {/* Contact Support */}
-      <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
-        <h3 className="text-lg font-black italic mb-4 flex items-center gap-2">
-          <HeadphonesIcon size={20} className="text-[#00F5A0]" />
-          Contact Support
-        </h3>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-black/40 p-4 rounded-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                <Mail size={16} className="text-blue-500" />
-              </div>
-              <div>
-                <p className="text-xs font-bold">Email Support</p>
-                <p className="text-[8px] text-gray-500">24/7 Support</p>
-              </div>
-            </div>
-            <p className="text-sm font-mono bg-black/60 p-2 rounded-lg text-blue-400">
-              support@cpaylink.com
-            </p>
-          </div>
-          
-          <div className="bg-black/40 p-4 rounded-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                <MessageCircle size={16} className="text-purple-500" />
-              </div>
-              <div>
-                <p className="text-xs font-bold">Telegram</p>
-                <p className="text-[8px] text-gray-500">Quick Response</p>
-              </div>
-            </div>
-            <p className="text-sm font-mono bg-black/60 p-2 rounded-lg text-purple-400">
-              @CpayLinkSupport
-            </p>
-          </div>
-        </div>
-        
-        <div className="mt-4 p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-          <p className="text-[10px] text-yellow-500 flex items-center gap-2">
-            <AlertCircle size={12} />
-            Support response time: 24-48 hours. Please share your User ID when contacting.
-          </p>
-        </div>
-      </div>
+<div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">
+  <h3 className="text-lg font-black italic mb-4 flex items-center gap-2">
+    <User size={20} className="text-[#00F5A0]" />
+    Lost Access?
+  </h3>
+  
+  
+</div>
 
       {/* ✅ ChatBot Section at the bottom */}
       <div className="bg-[#0A1F1A] border border-white/10 rounded-2xl p-6">

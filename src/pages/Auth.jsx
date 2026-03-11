@@ -241,7 +241,7 @@
 
 
 // pages/Auth.jsx - FIXED INITIAL STATE
-import React, { useState, useEffect } from "react"; // useEffect import करायला विसरू नका
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import {
   Zap,
@@ -254,7 +254,8 @@ import {
   Users,
   Copy,
   CheckCircle,
-  RefreshCw
+  Mail,              // ✅ Mail icon import केलाय
+  User
 } from "lucide-react";
 import { login as userLogin, register, adminLogin } from "../services/authService";
 import toast from 'react-hot-toast';
@@ -266,16 +267,16 @@ export default function Auth() {
   const [formData, setFormData] = useState({
     pin: "",
     confirmPin: "",
-    referralCode: ""
+    referralCode: "",
+    email: ""           // ✅ Email state add केली
   });
   const [generatedUserId, setGeneratedUserId] = useState("");
   const [userIdCopied, setUserIdCopied] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [registrationStep, setRegistrationStep] = useState(1); // 1: Show ID, 2: Enter PIN
+  const [registrationStep, setRegistrationStep] = useState(1);
   const navigate = useNavigate();
 
-  // ✅ FIX: Component लोड होताच ID generate करा
   useEffect(() => {
     if (!isLogin && registrationStep === 1 && !generatedUserId) {
       const newUserId = generateUserId();
@@ -283,25 +284,21 @@ export default function Auth() {
     }
   }, [isLogin, registrationStep]);
 
-  // Generate 6-digit User ID (100000 to 999999)
   const generateUserId = () => {
     const randomNum = Math.floor(100000 + Math.random() * 900000);
     return randomNum.toString();
   };
 
-  // Start registration - generate ID first
   const handleStartRegistration = () => {
-    // ✅ FIX: जर ID नसेल तर नवीन generate करा
     if (!generatedUserId) {
       const newUserId = generateUserId();
       setGeneratedUserId(newUserId);
     }
     setRegistrationStep(2);
-    setFormData({ pin: "", confirmPin: "", referralCode: "" });
+    setFormData({ pin: "", confirmPin: "", referralCode: "", email: "" }); // ✅ Email reset
     setError("");
   };
 
-  // Generate new ID (if user wants to change)
   const handleGenerateNewId = () => {
     const newUserId = generateUserId();
     setGeneratedUserId(newUserId);
@@ -318,6 +315,8 @@ export default function Auth() {
       setFormData({ ...formData, [name]: value.toUpperCase().replace(/[^A-Z0-9]/g, '') });
     } else if (name === 'userId') {
       setFormData({ ...formData, [name]: value.replace(/[^0-9]/g, '').slice(0, 6) });
+    } else if (name === 'email') {
+      setFormData({ ...formData, [name]: value });
     }
   };
 
@@ -328,109 +327,102 @@ export default function Auth() {
     toast.success("User ID copied to clipboard!");
   };
 
-// pages/Auth.jsx - handleSubmit function मध्ये
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+    if (!isLogin) {
+      // ✅ Registration validation with email
+      if (!formData.email) {
+        setError("Email is required");
+        setLoading(false);
+        return;
+      }
+      const emailRegex = /^\S+@\S+\.\S+$/;
+      if (!emailRegex.test(formData.email)) {
+        setError("Please enter a valid email");
+        setLoading(false);
+        return;
+      }
+      if (formData.pin.length !== 6) {
+        setError("PIN must be 6 digits");
+        setLoading(false);
+        return;
+      }
+      if (formData.pin !== formData.confirmPin) {
+        setError("PINs do not match");
+        setLoading(false);
+        return;
+      }
+    } else {
+      // Login validation
+      if (!formData.userId || formData.userId.length !== 6) {
+        setError("Please enter your 6-digit User ID");
+        setLoading(false);
+        return;
+      }
+      if (formData.pin.length !== 6) {
+        setError("PIN must be 6 digits");
+        setLoading(false);
+        return;
+      }
+    }
 
-  // console.log("📝 Form submitted:", { 
-  //   isLogin, 
-  //   formData: { 
-  //     userId: formData.userId, 
-  //     pin: formData.pin ? "******" : null 
-  //   } 
-  // });
-
-  if (!isLogin) {
-    // Registration validation
-    if (formData.pin.length !== 6) {
-      setError("PIN must be 6 digits");
-      setLoading(false);
-      return;
-    }
-    if (formData.pin !== formData.confirmPin) {
-      setError("PINs do not match");
-      setLoading(false);
-      return;
-    }
-  } else {
-    // Login validation
-    if (!formData.userId || formData.userId.length !== 6) {
-      setError("Please enter your 6-digit User ID");
-      setLoading(false);
-      return;
-    }
-    if (formData.pin.length !== 6) {
-      setError("PIN must be 6 digits");
-      setLoading(false);
-      return;
-    }
-  }
-
-  try {
-    let response;
-    
-    if (isLogin) {
-      // Try user login first
-      // console.log("🔐 Attempting user login...");
-      response = await userLogin(formData.userId, formData.pin);
+    try {
+      let response;
       
-      // If user login fails, try admin login
-      if (!response.success) {
-        // console.log("🔐 User login failed, trying admin login...");
-        const adminResponse = await adminLogin(formData.userId, formData.pin);
-        if (adminResponse.success) {
-          response = adminResponse;
+      if (isLogin) {
+        response = await userLogin(formData.userId, formData.pin);
+        
+        if (!response.success) {
+          const adminResponse = await adminLogin(formData.userId, formData.pin);
+          if (adminResponse.success) {
+            response = adminResponse;
+          }
         }
-      }
-    } else {
-      // Registration
-      // console.log("📝 Attempting registration...");
-      response = await register({
-        userId: generatedUserId,
-        pin: formData.pin,
-        referralCode: formData.referralCode || undefined
-      });
-    }
-
-    // console.log("📥 Final response:", response);
-
-    if (response.success) {
-      // Handle both response formats
-      const userData = response.data.user || response.data;
-      const token = response.data.token || response.token;
-      
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(userData));
-      
-      toast.success(isLogin ? "Login successful!" : "Account created successfully!");
-      
-      const userRole = userData.role;
-      
-      if (userRole === "admin") {
-        navigate("/admin-dashboard");
       } else {
-        navigate("/dashboard");
+        // ✅ Email पाठवतोय registration मध्ये
+        response = await register({
+          userId: generatedUserId,
+          email: formData.email,        // ✅ Email येथे पाठवतोय
+          pin: formData.pin,
+          referralCode: formData.referralCode || undefined
+        });
       }
-    } else {
-      setError(response.message || (isLogin ? "Login failed" : "Registration failed"));
+
+      if (response.success) {
+        const userData = response.data.user || response.data;
+        const token = response.data.token || response.token;
+        
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(userData));
+        
+        toast.success(isLogin ? "Login successful!" : "Account created successfully!");
+        
+        const userRole = userData.role;
+        
+        if (userRole === "admin") {
+          navigate("/admin-dashboard");
+        } else {
+          navigate("/dashboard");
+        }
+      } else {
+        setError(response.message || (isLogin ? "Login failed" : "Registration failed"));
+      }
+    } catch (err) {
+      console.error("❌ Auth error:", err);
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    console.error("❌ Auth error:", err);
-    setError("Network error. Please try again.");
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const resetRegistration = () => {
     setRegistrationStep(1);
-    // ✅ FIX: Step 1 वर गेल्यावर नवीन ID generate करा
     const newUserId = generateUserId();
     setGeneratedUserId(newUserId);
-    setFormData({ pin: "", confirmPin: "", referralCode: "" });
+    setFormData({ pin: "", confirmPin: "", referralCode: "", email: "" });
   };
 
   return (
@@ -464,7 +456,7 @@ const handleSubmit = async (e) => {
                 ? "Enter your 6-digit ID and PIN"
                 : registrationStep === 1 
                   ? "Generate your 6-digit User ID" 
-                  : "Set your 6-digit PIN"}
+                  : "Set your details"}
             </p>
           </div>
 
@@ -512,47 +504,68 @@ const handleSubmit = async (e) => {
                 disabled={!generatedUserId}
                 className="w-full bg-[#00F5A0] text-[#051510] py-5 rounded-2xl font-black text-lg shadow-[0_10px_30px_rgba(0,245,160,0.2)] hover:shadow-[0_10px_40px_rgba(0,245,160,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 group disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Continue to Set PIN
+                Continue to Set Details
                 <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           ) : (
-            // Step 2: Enter PIN (for registration) OR Login Form
+            // Step 2: Enter Details (Email, PIN, etc.) OR Login Form
             <form className="space-y-5" onSubmit={handleSubmit}>
               
               {isLogin && (
-                <div className="space-y-2">
-                  <label className="text-xs text-gray-500 ml-2">6-digit User ID</label>
-                  <div className="relative group">
-                    <input
-                      type="text"
-                      name="userId"
-                      placeholder="Enter 6-digit ID"
-                      value={formData.userId || ""}
-                      onChange={handleInputChange}
-                      maxLength="6"
-                      required
-                      className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 px-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white text-center text-2xl tracking-wider"
-                    />
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-500 ml-2">6-digit User ID</label>
+                    <div className="relative group">
+                      <input
+                        type="text"
+                        name="userId"
+                        placeholder="Enter 6-digit ID"
+                        value={formData.userId || ""}
+                        onChange={handleInputChange}
+                        maxLength="6"
+                        required
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 px-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white text-center text-2xl tracking-wider"
+                      />
+                    </div>
                   </div>
-                </div>
+                </>
               )}
 
               {!isLogin && (
-                <div className="bg-blue-500/10 p-4 rounded-xl mb-4">
-                  <p className="text-xs text-gray-400 mb-1">Your 6-digit ID:</p>
-                  <p className="text-3xl font-mono font-bold text-[#00F5A0] tracking-wider text-center">
-                    {generatedUserId}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={copyUserId}
-                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 mx-auto"
-                  >
-                    <Copy size={12} />
-                    Copy ID
-                  </button>
-                </div>
+                <>
+                  <div className="bg-blue-500/10 p-4 rounded-xl mb-4">
+                    <p className="text-xs text-gray-400 mb-1">Your 6-digit ID:</p>
+                    <p className="text-3xl font-mono font-bold text-[#00F5A0] tracking-wider text-center">
+                      {generatedUserId}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={copyUserId}
+                      className="mt-2 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1 mx-auto"
+                    >
+                      <Copy size={12} />
+                      Copy ID
+                    </button>
+                  </div>
+
+                  {/* ✅ Email Field - ही महत्त्वाची आहे */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-gray-500 ml-2">Email Address</label>
+                    <div className="relative group">
+                      <input
+                        type="email"
+                        name="email"
+                        placeholder="Enter your email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all text-white"
+                      />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0]" size={20} />
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="space-y-2">
@@ -578,6 +591,17 @@ const handleSubmit = async (e) => {
                   </button>
                 </div>
               </div>
+
+              {isLogin && (
+                <div className="text-center mt-4">
+                  <Link 
+                    to="/find-account"
+                    className="text-xs text-gray-500 hover:text-[#00F5A0] transition-colors"
+                  >
+                    Forgot User ID or PIN? Find Account
+                  </Link>
+                </div>
+              )}
 
               {!isLogin && (
                 <>
@@ -606,7 +630,7 @@ const handleSubmit = async (e) => {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs text-gray-500 ml-2">Referral Code</label>
+                    <label className="text-xs text-gray-500 ml-2">Referral Code (Optional)</label>
                     <div className="relative group">
                       <input
                         type="text"
@@ -651,7 +675,7 @@ const handleSubmit = async (e) => {
                 onClick={() => {
                   setIsLogin(!isLogin);
                   setError("");
-                  setFormData({ pin: "", confirmPin: "", referralCode: "", userId: "" });
+                  setFormData({ pin: "", confirmPin: "", referralCode: "", userId: "", email: "" });
                   setGeneratedUserId("");
                   setRegistrationStep(1);
                 }}

@@ -6,6 +6,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDashboard from "./pages/UserDashboard";
 import { Toaster } from 'react-hot-toast';
+import FindAccount from "./pages/FindAccount";
+import ResetPin from "./pages/ResetPin";
 function App() {
   return (
     <>
@@ -38,6 +40,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/find-account" element={<FindAccount/>}/>
+        <Route path="/reset-pin" element={<ResetPin/>}/>
 
         <Route
           path="/dashboard"

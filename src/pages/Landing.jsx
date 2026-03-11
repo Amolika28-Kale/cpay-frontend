@@ -35,7 +35,9 @@ import {
   Rocket,
   CreditCard,
   BarChart3,
-  AlertCircle
+  AlertCircle,
+  User,
+  Key
 } from "lucide-react";
 
 export default function Landing() {
@@ -396,94 +398,143 @@ export default function Landing() {
           </div>
         </div>
       </section>
+{/* ================= HELP SECTION ================= */}
+<section id="help" className="py-24 px-6 bg-[#030D0A]">
+  <div className="max-w-7xl mx-auto">
+    <div className="text-center mb-16">
+      <div className="inline-flex items-center gap-2 bg-[#00F5A0]/10 border border-[#00F5A0]/20 text-[#00F5A0] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4">
+        <HelpCircle size={14} /> 24/7 SUPPORT
+      </div>
+      <h2 className="text-5xl md:text-7xl font-bold mb-4">Need Help?</h2>
+      <p className="text-gray-500 max-w-2xl mx-auto">We're here to assist you with everything from wallet activation to referral commissions.</p>
+    </div>
 
-      {/* ================= HELP SECTION ================= */}
-      <section id="help" className="py-24 px-6 bg-[#030D0A]">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-[#00F5A0]/10 border border-[#00F5A0]/20 text-[#00F5A0] px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest mb-4">
-              <HelpCircle size={14} /> 24/7 SUPPORT
-            </div>
-            <h2 className="text-5xl md:text-7xl font-bold mb-4">Need Help?</h2>
-            <p className="text-gray-500 max-w-2xl mx-auto">We're here to assist you with everything from wallet activation to referral commissions.</p>
+    {/* Help Cards Grid - 3 cards */}
+    <div className="grid md:grid-cols-3 gap-8 mb-12">
+      {/* FAQ Card */}
+      <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
+        <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
+          <MessageCircle size={28} className="text-[#00F5A0]" />
+        </div>
+        <h3 className="text-xl font-bold mb-3">Frequently Asked Questions</h3>
+        <p className="text-sm text-gray-400 mb-6">Find quick answers to common questions about wallet activation, payments, and referrals.</p>
+        <ul className="space-y-3 text-xs text-gray-500">
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            How to activate wallet?
+          </li>
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            What is 7-day limit?
+          </li>
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            How do referrals work?
+          </li>
+        </ul>
+      </div>
+
+      {/* Guide Card */}
+      <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
+        <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
+          <BookOpen size={28} className="text-[#00F5A0]" />
+        </div>
+        <h3 className="text-xl font-bold mb-3">Quick Start Guides</h3>
+        <p className="text-sm text-gray-400 mb-6">Step-by-step tutorials to help you get started and maximize your earnings.</p>
+        <ul className="space-y-3 text-xs text-gray-500">
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            Wallet Activation Guide
+          </li>
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            How to Make Payments
+          </li>
+          <li className="flex items-center gap-2">
+            <CheckCircle2 size={12} className="text-[#00F5A0]" />
+            Referral System Explained
+          </li>
+        </ul>
+      </div>
+
+      {/* Contact Support Card */}
+      <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
+        <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
+          <HeadphonesIcon size={28} className="text-[#00F5A0]" />
+        </div>
+        <h3 className="text-xl font-bold mb-3">Contact Support</h3>
+        <p className="text-sm text-gray-400 mb-6">Get in touch with our support team for personalized assistance.</p>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 text-xs">
+            <Mail size={14} className="text-blue-400" />
+            <span className="text-gray-300">support@cpaylink.com</span>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            {/* FAQ Card */}
-            <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
-              <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <MessageCircle size={28} className="text-[#00F5A0]" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Frequently Asked Questions</h3>
-              <p className="text-sm text-gray-400 mb-6">Find quick answers to common questions about wallet activation, payments, and referrals.</p>
-              <ul className="space-y-3 text-xs text-gray-500">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  How to activate wallet?
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  What is 7-day limit?
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  How do referrals work?
-                </li>
-              </ul>
-            </div>
-
-            {/* Guide Card */}
-            <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
-              <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <BookOpen size={28} className="text-[#00F5A0]" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Quick Start Guides</h3>
-              <p className="text-sm text-gray-400 mb-6">Step-by-step tutorials to help you get started and maximize your earnings.</p>
-              <ul className="space-y-3 text-xs text-gray-500">
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  Wallet Activation Guide
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  How to Make Payments
-                </li>
-                <li className="flex items-center gap-2">
-                  <CheckCircle2 size={12} className="text-[#00F5A0]" />
-                  Referral System Explained
-                </li>
-              </ul>
-            </div>
-
-            {/* Contact Support Card */}
-            <div className="bg-[#0A1F1A] border border-white/10 p-8 rounded-[2rem] hover:border-[#00F5A0]/20 transition-all">
-              <div className="bg-[#00F5A0]/10 w-14 h-14 rounded-xl flex items-center justify-center mb-6">
-                <HeadphonesIcon size={28} className="text-[#00F5A0]" />
-              </div>
-              <h3 className="text-xl font-bold mb-3">Contact Support</h3>
-              <p className="text-sm text-gray-400 mb-6">Get in touch with our support team for personalized assistance.</p>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 text-xs">
-                  <Mail size={14} className="text-blue-400" />
-                  <span className="text-gray-300">support@cpaylink.com</span>
-                </div>
-                <div className="flex items-center gap-3 text-xs">
-                  <MessageCircle size={14} className="text-purple-400" />
-                  <span className="text-gray-300">@CpayLinkSupport</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Support Response Time */}
-          <div className="max-w-2xl mx-auto text-center p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
-            <p className="text-xs text-yellow-500 flex items-center justify-center gap-2">
-              <AlertCircle size={14} />
-              Support response time: 24-48 hours. Please share your User ID when contacting.
-            </p>
+          <div className="flex items-center gap-3 text-xs">
+            <MessageCircle size={14} className="text-purple-400" />
+            <span className="text-gray-300">@CpayLinkSupport</span>
           </div>
         </div>
-      </section>
+      </div>
+    </div>
+
+    {/* ✅ Find Account Section - हा नवीन सेक्शन आहे */}
+    <div className="max-w-3xl mx-auto mb-8">
+      <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 p-8 rounded-[2rem] border border-blue-500/20 text-center">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="bg-blue-500/20 p-3 rounded-xl">
+            <User size={24} className="text-blue-400" />
+          </div>
+          <h3 className="text-2xl font-bold">Lost Access to Your Account?</h3>
+        </div>
+        
+        <p className="text-gray-300 mb-6 max-w-lg mx-auto">
+          Can't remember your User ID or PIN? Don't worry! We'll help you recover your account instantly.
+        </p>
+        
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link
+            to="/find-account"
+            className="inline-flex items-center gap-2 bg-[#00F5A0] text-[#051510] px-8 py-4 rounded-xl font-bold text-lg hover:shadow-[0_0_30px_rgba(0,245,160,0.3)] transition-all group"
+          >
+            Find My Account
+            <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+          
+          <Link
+            to="/auth"
+            className="inline-flex items-center gap-2 bg-white/5 border border-white/10 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all"
+          >
+            Login Instead
+          </Link>
+        </div>
+
+        {/* Quick Info Points */}
+        <div className="flex flex-wrap justify-center gap-6 mt-8 pt-6 border-t border-white/10">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Mail size={14} className="text-[#00F5A0]" />
+            <span>Email Verification</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Key size={14} className="text-[#00F5A0]" />
+            <span>OTP Security</span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <Lock size={14} className="text-[#00F5A0]" />
+            <span>PIN Reset</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Support Response Time */}
+    <div className="max-w-2xl mx-auto text-center p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20">
+      <p className="text-xs text-yellow-500 flex items-center justify-center gap-2">
+        <AlertCircle size={14} />
+        Support response time: 24-48 hours. Please share your User ID when contacting.
+      </p>
+    </div>
+  </div>
+</section>
 
       {/* ================= FINAL CTA ================= */}
       <section className="py-24 px-6 flex justify-center">
