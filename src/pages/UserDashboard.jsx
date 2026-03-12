@@ -823,11 +823,6 @@ const handleDepositSubmit = async () => {
 
 // In UserDashboard.jsx - Update handleCreateScanner
 
-// In UserDashboard.jsx - Replace your existing handleCreateScanner with this
-
-
-// In UserDashboard.jsx - Update handleCreateScanner
-
 const handleCreateScanner = async () => {
   // ========== 1. BASIC VALIDATION ==========
   if (!uploadAmount || !selectedImage) {
@@ -841,144 +836,98 @@ const handleCreateScanner = async () => {
     return;
   }
 
-  // ========== 3. QR CODE DETECTION ==========
+  // ========== 3. NO QR DETECTION - सरळ request करा ==========
   setActionLoading(true);
-  const validationToast = toast.loading("Scanning for QR code...");
+  const toastId = toast.loading("Creating pay request...");
 
   try {
-    // Read the image file
-    const imageData = await readImageFile(selectedImage);
-    
-    // Use jsQR to detect QR code
-    const code = jsQR(imageData.data, imageData.width, imageData.height);
-    
-    if (!code) {
-      // No QR code found in the image
-      toast.dismiss(validationToast);
-      toast.error(
-        <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl">
-          <div className="bg-red-500/20 p-2 rounded-full">
-            <Camera size={24} className="text-red-500" />
-          </div>
-          <div>
-            <div className="font-bold text-red-500">No QR Code Found! ❌</div>
-            <div className="text-xs text-gray-300 mt-1">
-              This image does not contain a valid QR code.
-            </div>
-            <div className="text-[8px] text-gray-400 mt-1">
-              Please upload a clear image of a QR code only.
-            </div>
-          </div>
-        </div>,
-        { 
-          duration: 8000,
-          style: {
-            background: '#0A1F1A',
-            color: 'white',
-            border: '1px solid #ef4444/20',
-            padding: 0
-          }
-        }
-      );
-      setActionLoading(false);
-      return;
-    }
+    const res = await requestToPay(uploadAmount, selectedImage);
 
-    // QR code found! Continue with request
-    toast.dismiss(validationToast);
-    
-    // Optional: Show QR content preview
-    console.log("✅ QR Code detected:", code.data);
-    
-    // Continue with pay request
-    const toastId = toast.loading("Creating pay request...");
+    if (res?.scanner?._id) {
+      const newRequest = {
+        ...res.scanner,
+        user: {
+          _id: user._id,
+          name: user.name,
+          userId: user.userId
+        },
+        createdAt: res.scanner.createdAt || new Date().toISOString(),
+        expiresAt: res.scanner.expiresAt || new Date(Date.now() + 10*60*1000).toISOString()
+      };
 
-    try {
-      const res = await requestToPay(uploadAmount, selectedImage);
+      setScanners(prev => [newRequest, ...prev]);
 
-      if (res?.scanner?._id) {
-        const newRequest = {
-          ...res.scanner,
-          user: {
-            _id: user._id,
-            name: user.name,
-            userId: user.userId
-          },
-          createdAt: res.scanner.createdAt || new Date().toISOString(),
-          expiresAt: res.scanner.expiresAt || new Date(Date.now() + 10*60*1000).toISOString()
-        };
-
-        setScanners(prev => [newRequest, ...prev]);
-
-        toast.dismiss(toastId);
-        
-        toast.success(
-          <div className="flex items-center gap-2">
-            <CheckCircle size={20} className="text-[#00F5A0]" />
-            <div>
-              <div className="font-bold">Pay Request Created! 🎉</div>
-              <div className="text-xs">Amount: ₹{uploadAmount}</div>
-              {res.balance && (
-                <div className="text-[10px] text-gray-400 mt-1">
-                  Remaining Balance: ₹{res.balance.remaining}
-                </div>
-              )}
-            </div>
-          </div>,
-          { duration: 5000 }
-        );
-
-        setUploadAmount("");
-        setSelectedImage(null);
-        setIsRedeemMode(false);
-        setActiveTab("Scanner");
-        loadAllData();
-
-      } else {
-        toast.dismiss(toastId);
-        toast.error(res?.message || "Failed to create request");
-      }
-
-    } catch (error) {
       toast.dismiss(toastId);
       
-      if (error.type === 'INSUFFICIENT_BALANCE') {
-        toast.error(
-          <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl w-full max-w-md">
-            <div className="bg-red-500/20 p-2 rounded-full flex-shrink-0">
-              <AlertCircle size={24} className="text-red-500" />
-            </div>
-            <div className="flex-1">
-              <div className="font-bold text-red-500">Insufficient Balance! ❌</div>
-              <div className="text-xs text-gray-300 mt-1">
-                You have <span className="text-[#00F5A0] font-bold">₹{error.currentBalance}</span> but need <span className="text-red-400 font-bold">₹{error.requiredAmount}</span>
+      toast.success(
+        <div className="flex items-center gap-2">
+          <CheckCircle size={20} className="text-[#00F5A0]" />
+          <div>
+            <div className="font-bold">Pay Request Created! 🎉</div>
+            <div className="text-xs">Amount: ₹{uploadAmount}</div>
+            {res.balance && (
+              <div className="text-[10px] text-gray-400 mt-1">
+                Remaining Balance: ₹{res.balance.remaining}
               </div>
-              <div className="flex gap-2 mt-2">
-                <button 
-                  onClick={() => setActiveTab("Deposit")}
-                  className="text-[10px] bg-[#00F5A0] text-black px-3 py-1.5 rounded-full font-bold"
-                >
-                  DEPOSIT NOW
-                </button>
-                <button 
-                  onClick={() => setUploadAmount("")}
-                  className="text-[10px] bg-white/10 text-white px-3 py-1.5 rounded-full"
-                >
-                  TRY AGAIN
-                </button>
-              </div>
-            </div>
-          </div>,
-          { duration: 10000 }
-        );
-      } else {
-        toast.error(error.message || "Failed to create request");
-      }
+            )}
+          </div>
+        </div>,
+        { duration: 5000 }
+      );
+
+      setUploadAmount("");
+      setSelectedImage(null);
+      setIsRedeemMode(false);
+      setActiveTab("Scanner");
+      loadAllData();
+
+    } else {
+      toast.dismiss(toastId);
+      toast.error(res?.message || "Failed to create request");
     }
 
   } catch (error) {
-    toast.dismiss(validationToast);
-    toast.error("Failed to process image. Please try again.");
+    toast.dismiss(toastId);
+    
+    // ✅ Handle insufficient balance error
+    if (error.response?.data?.requiresDeposit) {
+      const data = error.response.data;
+      toast.error(
+        <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl w-full max-w-md">
+          <div className="bg-red-500/20 p-2 rounded-full flex-shrink-0">
+            <AlertCircle size={24} className="text-red-500" />
+          </div>
+          <div className="flex-1">
+            <div className="font-bold text-red-500">Insufficient Balance! ❌</div>
+            <div className="text-xs text-gray-300 mt-1">
+              You have <span className="text-[#00F5A0] font-bold">₹{data.currentBalance}</span> but need <span className="text-red-400 font-bold">₹{data.requiredAmount}</span>
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Shortfall: ₹{data.shortfall}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button 
+                onClick={() => setActiveTab("Deposit")}
+                className="text-[10px] bg-[#00F5A0] text-black px-3 py-1.5 rounded-full font-bold"
+              >
+                DEPOSIT NOW
+              </button>
+              <button 
+                onClick={() => setUploadAmount("")}
+                className="text-[10px] bg-white/10 text-white px-3 py-1.5 rounded-full"
+              >
+                TRY AGAIN
+              </button>
+            </div>
+          </div>
+        </div>,
+        { duration: 10000 }
+      );
+    } 
+    // ✅ Handle other errors
+    else {
+      toast.error(error.response?.data?.message || error.message || "Failed to create request");
+    }
   } finally {
     setActionLoading(false);
   }
@@ -1601,31 +1550,31 @@ const confirmActivation = async () => {
       className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg disabled:opacity-50 disabled:cursor-not-allowed"
     />
     
-    {/* QR Code Upload Options */}
-    <div className="space-y-3">
-      <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
-        <Camera size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
-        Take Photo of QR Code
-        <input 
-          type="file" 
-          accept="image/jpeg,image/jpg,image/png,image/webp" 
-          capture="environment" 
-          onChange={(e) => setSelectedImage(e.target.files[0])} 
-          className="hidden" 
-        />
-      </label>
-      
-      <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
-        <UploadCloud size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
-        Upload QR Code from Gallery
-        <input
-          type="file"
-          accept="image/jpeg,image/jpg,image/png,image/webp"
-          onChange={(e) => setSelectedImage(e.target.files[0])}
-          className="hidden"
-        />
-      </label>
-    </div>
+  {/* QR Code Upload Options - आता कोणतंही फोटो चालेल */}
+<div className="space-y-3">
+  <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
+    <Camera size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
+    Take Photo
+    <input 
+      type="file" 
+      accept="image/jpeg,image/jpg,image/png,image/webp" 
+      capture="environment" 
+      onChange={(e) => setSelectedImage(e.target.files[0])} 
+      className="hidden" 
+    />
+  </label>
+  
+  <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
+    <UploadCloud size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
+    Upload from Gallery
+    <input
+      type="file"
+      accept="image/jpeg,image/jpg,image/png,image/webp"
+      onChange={(e) => setSelectedImage(e.target.files[0])}
+      className="hidden"
+    />
+  </label>
+</div>
 
    
 
@@ -1651,28 +1600,27 @@ const confirmActivation = async () => {
       </div>
     )}
 
-    {/* Disclaimer and Terms */}
-    <div className="mb-4">
-      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-        <p className="text-xs text-gray-400 mb-3 font-bold">DISCLAIMER:</p>
-        <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1.5">
-          <li>You are creating a pay request for <span className="text-[#00F5A0]">₹{uploadAmount || '0'}</span></li>
-          <li>This request will expire in <span className="text-yellow-500">10 minutes</span> if not accepted</li>
-          <li>Ensure your QR code is valid and scannable</li>
-          <li>You must have sufficient <span className="text-[#00F5A0]">INR balance</span> to create request</li>
-          <li className="text-yellow-500">⚠️ Only QR code images are allowed. Personal photos will be rejected.</li>
-        </ul>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={createTermsAccepted}
-            onChange={(e) => setCreateTermsAccepted(e.target.checked)}
-            className="w-4 h-4 accent-[#00F5A0]"
-          />
-          <span className="text-xs text-gray-300">I agree to the terms and conditions</span>
-        </label>
-      </div>
-    </div>
+  {/* Disclaimer and Terms */}
+<div className="mb-4">
+  <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+    <p className="text-xs text-gray-400 mb-3 font-bold">DISCLAIMER:</p>
+    <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1.5">
+      <li>You are creating a pay request for <span className="text-[#00F5A0]">₹{uploadAmount || '0'}</span></li>
+      <li>This request will expire in <span className="text-yellow-500">10 minutes</span> if not accepted</li>
+      <li>You must have sufficient <span className="text-[#00F5A0]">INR balance</span> to create request</li>
+      <li className="text-yellow-500">⚠️ Upload clear photo of payment QR code</li>
+    </ul>
+    <label className="flex items-center gap-2 cursor-pointer">
+      <input
+        type="checkbox"
+        checked={createTermsAccepted}
+        onChange={(e) => setCreateTermsAccepted(e.target.checked)}
+        className="w-4 h-4 accent-[#00F5A0]"
+      />
+      <span className="text-xs text-gray-300">I agree to the terms and conditions</span>
+    </label>
+  </div>
+</div>
 
     {/* Submit Button */}
     <button
