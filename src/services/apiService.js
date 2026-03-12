@@ -355,6 +355,24 @@ export const getTransactions = async () => {
   return res.json();
 };
 
+// /* ================= SCANNER ================= */
+// export const requestToPay = async (amount, imageFile, upiLink = "") => {
+//   const formData = new FormData();
+//   formData.append("amount", amount);
+//   formData.append("image", imageFile);
+//   formData.append("upiLink", upiLink);
+
+//   const res = await fetch(`${API_BASE}/scanner/request`, {
+//     method: "POST",
+//     headers: {
+//       Authorization: `Bearer ${localStorage.getItem("token")}`
+//     },
+//     body: formData,
+//   });
+//   return res.json();
+// };
+
+
 /* ================= SCANNER ================= */
 export const requestToPay = async (amount, imageFile, upiLink = "") => {
   const formData = new FormData();
@@ -362,16 +380,41 @@ export const requestToPay = async (amount, imageFile, upiLink = "") => {
   formData.append("image", imageFile);
   formData.append("upiLink", upiLink);
 
-  const res = await fetch(`${API_BASE}/scanner/request`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`
-    },
-    body: formData,
-  });
-  return res.json();
-};
+  try {
+    const res = await fetch(`${API_BASE}/scanner/request`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`
+      },
+      body: formData,
+    });
 
+    const data = await res.json();
+    
+    if (!res.ok) {
+      // Handle insufficient balance specifically
+      if (data.requiresDeposit) {
+        throw {
+          ...data,
+          type: 'INSUFFICIENT_BALANCE'
+        };
+      }
+      // Handle invalid file type
+      if (data.message?.includes("Invalid file type") || data.message?.includes("QR required")) {
+        throw {
+          ...data,
+          type: 'INVALID_FILE'
+        };
+      }
+      throw data;
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("Request to pay error:", error);
+    throw error;
+  }
+};
 export const getActiveRequests = async () => {
   try {
     const token = localStorage.getItem("token");

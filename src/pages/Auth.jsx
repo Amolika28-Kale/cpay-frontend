@@ -355,6 +355,13 @@ export default function Auth() {
         setLoading(false);
         return;
       }
+
+       // ✅ REFERRAL CODE MANDATORY - Add this check
+  if (!formData.referralCode || formData.referralCode.trim() === "") {
+    setError("Referral code is required");
+    setLoading(false);
+    return;
+  }
     } else {
       // Login validation
       if (!formData.userId || formData.userId.length !== 6) {
@@ -629,20 +636,31 @@ export default function Auth() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs text-gray-500 ml-2">Referral Code (Optional)</label>
-                    <div className="relative group">
-                      <input
-                        type="text"
-                        name="referralCode"
-                        placeholder="Enter referral code"
-                        value={formData.referralCode}
-                        onChange={handleInputChange}
-                        className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white uppercase"
-                      />
-                      <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
-                    </div>
-                  </div>
+                   {/* ✅ REFERRAL FIELD - Now mandatory */}
+    <div className="space-y-2">
+      <label className="text-xs text-gray-500 ml-2">Referral Code <span className="text-red-500">*</span></label>
+      <div className="relative group">
+        <input
+          type="text"
+          name="referralCode"
+          placeholder="Enter referral code (required)"
+          value={formData.referralCode}
+          onChange={handleInputChange}
+          required
+          className="w-full bg-black/40 border border-white/5 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-[#00F5A0]/50 transition-all font-bold placeholder:text-gray-700 text-white uppercase"
+        />
+        <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-600 group-focus-within:text-[#00F5A0] transition-colors" size={20} />
+        
+        {/* Show validation indicator */}
+        {formData.referralCode && formData.referralCode.length > 0 && (
+          <CheckCircle size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500" />
+        )}
+      </div>
+      {/* Helper text */}
+      <p className="text-[8px] text-gray-600 mt-1 ml-2">
+        Enter the referral code of the person who invited you
+      </p>
+    </div>
                 </>
               )}
 

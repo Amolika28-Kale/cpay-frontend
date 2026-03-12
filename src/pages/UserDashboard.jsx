@@ -26,6 +26,8 @@ import QRCode from 'react-qr-code';
 import API_BASE from "../services/api";
 import HelpPage from "../components/HelpPage";
 import ChatBot from "../components/ChatBot";
+import jsQR from "jsqr";
+
 
 export default function UserDashboard() {
   const navigate = useNavigate();
@@ -821,60 +823,207 @@ const handleDepositSubmit = async () => {
 
 // In UserDashboard.jsx - Update handleCreateScanner
 
+// In UserDashboard.jsx - Replace your existing handleCreateScanner with this
+
+
+// In UserDashboard.jsx - Update handleCreateScanner
+
 const handleCreateScanner = async () => {
+  // ========== 1. BASIC VALIDATION ==========
   if (!uploadAmount || !selectedImage) {
     toast.error("Please enter amount and select QR image");
     return;
   }
 
+  // ========== 2. AMOUNT VALIDATION ==========
+  if (Number(uploadAmount) <= 0) {
+    toast.error("Please enter a valid amount");
+    return;
+  }
+
+  // ========== 3. QR CODE DETECTION ==========
   setActionLoading(true);
-  const toastId = toast.loading("Creating pay request...");
+  const validationToast = toast.loading("Scanning for QR code...");
 
   try {
-    const res = await requestToPay(uploadAmount, selectedImage);
+    // Read the image file
+    const imageData = await readImageFile(selectedImage);
+    
+    // Use jsQR to detect QR code
+    const code = jsQR(imageData.data, imageData.width, imageData.height);
+    
+    if (!code) {
+      // No QR code found in the image
+      toast.dismiss(validationToast);
+      toast.error(
+        <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl">
+          <div className="bg-red-500/20 p-2 rounded-full">
+            <Camera size={24} className="text-red-500" />
+          </div>
+          <div>
+            <div className="font-bold text-red-500">No QR Code Found! ❌</div>
+            <div className="text-xs text-gray-300 mt-1">
+              This image does not contain a valid QR code.
+            </div>
+            <div className="text-[8px] text-gray-400 mt-1">
+              Please upload a clear image of a QR code only.
+            </div>
+          </div>
+        </div>,
+        { 
+          duration: 8000,
+          style: {
+            background: '#0A1F1A',
+            color: 'white',
+            border: '1px solid #ef4444/20',
+            padding: 0
+          }
+        }
+      );
+      setActionLoading(false);
+      return;
+    }
 
-    if (res?.scanner?._id) {
+    // QR code found! Continue with request
+    toast.dismiss(validationToast);
+    
+    // Optional: Show QR content preview
+    console.log("✅ QR Code detected:", code.data);
+    
+    // Continue with pay request
+    const toastId = toast.loading("Creating pay request...");
 
-      // ✅ FIX: पूर्ण user object बनवा
-      const newRequest = {
-        ...res.scanner,
-        user: {
-          _id: user._id,
-          name: user.name,
-          userId: user.userId
-        },
-        // ✅ सुनिश्चित करा की createdAt आणि expiresAt सेट आहेत
-        createdAt: res.scanner.createdAt || new Date().toISOString(),
-        expiresAt: res.scanner.expiresAt || new Date(Date.now() + 10*60*1000).toISOString()
-      };
+    try {
+      const res = await requestToPay(uploadAmount, selectedImage);
 
-      // ✅ Directly state update करा
-      setScanners(prev => [newRequest, ...prev]);
+      if (res?.scanner?._id) {
+        const newRequest = {
+          ...res.scanner,
+          user: {
+            _id: user._id,
+            name: user.name,
+            userId: user.userId
+          },
+          createdAt: res.scanner.createdAt || new Date().toISOString(),
+          expiresAt: res.scanner.expiresAt || new Date(Date.now() + 10*60*1000).toISOString()
+        };
 
-      toast.dismiss(toastId);
-      toast.success("Pay Request Created! 🎉");
+        setScanners(prev => [newRequest, ...prev]);
 
-      setUploadAmount("");
-      setSelectedImage(null);
-      setIsRedeemMode(false);
-      setActiveTab("Scanner");
+        toast.dismiss(toastId);
+        
+        toast.success(
+          <div className="flex items-center gap-2">
+            <CheckCircle size={20} className="text-[#00F5A0]" />
+            <div>
+              <div className="font-bold">Pay Request Created! 🎉</div>
+              <div className="text-xs">Amount: ₹{uploadAmount}</div>
+              {res.balance && (
+                <div className="text-[10px] text-gray-400 mt-1">
+                  Remaining Balance: ₹{res.balance.remaining}
+                </div>
+              )}
+            </div>
+          </div>,
+          { duration: 5000 }
+        );
 
-      // ✅ backend sync - delay ने करा
-      setTimeout(() => {
+        setUploadAmount("");
+        setSelectedImage(null);
+        setIsRedeemMode(false);
+        setActiveTab("Scanner");
         loadAllData();
-      }, 2000); // 2 seconds नंतर sync
 
-    } else {
+      } else {
+        toast.dismiss(toastId);
+        toast.error(res?.message || "Failed to create request");
+      }
+
+    } catch (error) {
       toast.dismiss(toastId);
-      toast.error(res?.message || "Failed to create request");
+      
+      if (error.type === 'INSUFFICIENT_BALANCE') {
+        toast.error(
+          <div className="flex items-center gap-3 bg-red-500/10 p-3 rounded-xl w-full max-w-md">
+            <div className="bg-red-500/20 p-2 rounded-full flex-shrink-0">
+              <AlertCircle size={24} className="text-red-500" />
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-red-500">Insufficient Balance! ❌</div>
+              <div className="text-xs text-gray-300 mt-1">
+                You have <span className="text-[#00F5A0] font-bold">₹{error.currentBalance}</span> but need <span className="text-red-400 font-bold">₹{error.requiredAmount}</span>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button 
+                  onClick={() => setActiveTab("Deposit")}
+                  className="text-[10px] bg-[#00F5A0] text-black px-3 py-1.5 rounded-full font-bold"
+                >
+                  DEPOSIT NOW
+                </button>
+                <button 
+                  onClick={() => setUploadAmount("")}
+                  className="text-[10px] bg-white/10 text-white px-3 py-1.5 rounded-full"
+                >
+                  TRY AGAIN
+                </button>
+              </div>
+            </div>
+          </div>,
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(error.message || "Failed to create request");
+      }
     }
 
   } catch (error) {
-    toast.dismiss(toastId);
-    toast.error(error?.response?.data?.message || "Upload failed");
+    toast.dismiss(validationToast);
+    toast.error("Failed to process image. Please try again.");
   } finally {
     setActionLoading(false);
   }
+};
+
+// Helper function to read image file
+const readImageFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        // Create canvas to get image data
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        ctx.drawImage(img, 0, 0);
+        
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        
+        resolve({
+          data: imageData.data,
+          width: img.width,
+          height: img.height
+        });
+      };
+      
+      img.onerror = () => {
+        reject(new Error("Failed to load image"));
+      };
+      
+      img.src = e.target.result;
+    };
+    
+    reader.onerror = () => {
+      reject(new Error("Failed to read file"));
+    };
+    
+    reader.readAsDataURL(file);
+  });
 };
 
   const downloadQR = (s) => {
@@ -992,6 +1141,86 @@ const handleActivateWallet = () => {
   setShowActivationModal(true);
 };
 
+// const confirmActivation = async () => {
+//   setShowActivationModal(false);
+  
+//   // Get current limit
+//   const currentLimit = Number(dailyAcceptLimit || activationStatus.dailyLimit || 0);
+  
+//   // Calculate required amount based on whether it's new activation or increase
+//   let requiredAmount;
+//   let limitToSet;
+//   let isIncrease = false;
+  
+//   if (walletActivated) {
+//     // For increase: only pay for the difference
+//     const additionalLimit = localInputLimit - currentLimit;
+//     requiredAmount = calculateActivationAmount(additionalLimit);
+//     limitToSet = localInputLimit; // New total limit
+//     isIncrease = true;
+//   } else {
+//     // For new activation: pay for full limit
+//     requiredAmount = calculateActivationAmount(localInputLimit);
+//     limitToSet = localInputLimit;
+    
+//     // ✅ CHECK MINIMUM FOR FIRST TIME
+//     if (requiredAmount < 50) {
+//       toast.error("Minimum deposit for first activation is $50 USDT");
+//       setLocalInputLimit("");
+//       return;
+//     }
+//   }
+  
+//   // ✅ Store pending activation with proper info
+//   localStorage.setItem("pendingActivation", JSON.stringify({
+//     dailyLimit: limitToSet,
+//     amount: requiredAmount,
+//     timestamp: Date.now(),
+//     depositPending: true,
+//     depositSubmitted: false,
+//     isIncrease: isIncrease,
+//     previousLimit: isIncrease ? currentLimit : null
+//   }));
+  
+//   // Redirect to Deposit tab with pre-filled amount
+//   setActiveTab("Deposit");
+  
+//   // Set deposit amount to required amount
+//   setDepositData({ 
+//     amount: requiredAmount.toFixed(2), 
+//     network: "TRC20" 
+//   });
+  
+//   // Show appropriate message
+//   toast.success(
+//     <div className="flex items-center gap-2">
+//       <ArrowRight size={20} className="text-[#00F5A0]" />
+//       <div>
+//         <div className="font-bold">
+//           {walletActivated ? 'Please Deposit Additional ' : 'Please Deposit '}
+//           {requiredAmount} USDT
+//         </div>
+//         <div className="text-xs">
+//           {walletActivated 
+//             ? `For increasing limit from ₹${currentLimit.toLocaleString()} to ₹${localInputLimit.toLocaleString()}`
+//             : `For ₹${localInputLimit.toLocaleString()} daily limit`}
+//         </div>
+//         <div className="text-xs text-gray-400 mt-1">
+//           After deposit submission, wallet will update in 5 minutes ⏱️
+//         </div>
+//       </div>
+//     </div>,
+//     { duration: 6000 }
+//   );
+  
+//   // Reset local input
+//   setLocalInputLimit("");
+// };
+
+
+
+// In UserDashboard.jsx - Update confirmActivation function
+
 const confirmActivation = async () => {
   setShowActivationModal(false);
   
@@ -1004,17 +1233,26 @@ const confirmActivation = async () => {
   let isIncrease = false;
   
   if (walletActivated) {
-    // For increase: only pay for the difference
+    // ✅ FOR INCREASE: No minimum check needed
     const additionalLimit = localInputLimit - currentLimit;
     requiredAmount = calculateActivationAmount(additionalLimit);
     limitToSet = localInputLimit; // New total limit
     isIncrease = true;
+    
+    // ❌ REMOVE MINIMUM CHECK FOR INCREASE
+    // Only check if amount is valid (not zero or negative)
+    if (requiredAmount <= 0) {
+      toast.error("Please enter a valid limit increase");
+      setLocalInputLimit("");
+      return;
+    }
+    
   } else {
-    // For new activation: pay for full limit
+    // ✅ FOR FIRST ACTIVATION: Need $50 minimum
     requiredAmount = calculateActivationAmount(localInputLimit);
     limitToSet = localInputLimit;
     
-    // ✅ CHECK MINIMUM FOR FIRST TIME
+    // ✅ CHECK MINIMUM ONLY FOR FIRST TIME
     if (requiredAmount < 50) {
       toast.error("Minimum deposit for first activation is $50 USDT");
       setLocalInputLimit("");
@@ -1067,7 +1305,6 @@ const confirmActivation = async () => {
   // Reset local input
   setLocalInputLimit("");
 };
-
   const handleConfirmPayment = async () => {
     if (!paymentScreenshot) {
       toast.error("Please upload screenshot");
@@ -1337,111 +1574,127 @@ const confirmActivation = async () => {
   
 </div>
 
-            {/* CREATE PAY REQUEST */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
-                <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
-                  <UploadCloud size={20} /> Pay My Bill
-                </h2>
+          {/* CREATE PAY REQUEST */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem]">
+    <h2 className="text-xl font-black text-[#00F5A0] mb-6 italic flex items-center gap-2">
+      <UploadCloud size={20} /> Pay My Bill
+    </h2>
 
-                {/* Redeem Mode Indicator */}
-                {isRedeemMode && (
-                  <div className="mb-4 p-3 bg-[#00F5A0]/10 border border-[#00F5A0]/20 rounded-xl">
-                    <p className="text-[10px] text-[#00F5A0] font-bold flex items-center gap-1">
-                      <Zap size={12} />
-                      Redeemed Cashback Mode: Amount fixed at ₹{uploadAmount}
-                    </p>
-                  </div>
-                )}
+    {/* Redeem Mode Indicator */}
+    {isRedeemMode && (
+      <div className="mb-4 p-3 bg-[#00F5A0]/10 border border-[#00F5A0]/20 rounded-xl">
+        <p className="text-[10px] text-[#00F5A0] font-bold flex items-center gap-1">
+          <Zap size={12} />
+          Redeemed Cashback Mode: Amount fixed at ₹{uploadAmount}
+        </p>
+      </div>
+    )}
 
-                <input
-                  type="number"
-                  placeholder="Enter Amount"
-                  value={uploadAmount}
-                  onChange={(e) => setUploadAmount(e.target.value)}
-                  disabled={isRedeemMode}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                
-                <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4 hover:bg-black/60 transition-all">
-                  <Camera size={18} className="inline mr-2 text-[#00F5A0]" /> 
-                  Take Photo with Camera
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    capture="environment" 
-                    onChange={(e) => setSelectedImage(e.target.files[0])} 
-                    className="hidden" 
-                  />
-                </label>
-                
-                <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm mb-4 hover:bg-black/60 transition-all">
-                  <UploadCloud size={18} className="inline mr-2 text-[#00F5A0]" /> 
-                  Choose from Gallery
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setSelectedImage(e.target.files[0])}
-                    className="hidden"
-                  />
-                </label>
+    {/* Amount Input */}
+    <input
+      type="number"
+      placeholder="Enter Amount (₹)"
+      value={uploadAmount}
+      onChange={(e) => setUploadAmount(e.target.value)}
+      disabled={isRedeemMode}
+      className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+    />
+    
+    {/* QR Code Upload Options */}
+    <div className="space-y-3">
+      <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
+        <Camera size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
+        Take Photo of QR Code
+        <input 
+          type="file" 
+          accept="image/jpeg,image/jpg,image/png,image/webp" 
+          capture="environment" 
+          onChange={(e) => setSelectedImage(e.target.files[0])} 
+          className="hidden" 
+        />
+      </label>
+      
+      <label className="block bg-black/40 border border-white/10 rounded-xl py-4 text-center cursor-pointer font-bold text-sm hover:bg-black/60 transition-all group">
+        <UploadCloud size={18} className="inline mr-2 text-[#00F5A0] group-hover:scale-110 transition-transform" /> 
+        Upload QR Code from Gallery
+        <input
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          onChange={(e) => setSelectedImage(e.target.files[0])}
+          className="hidden"
+        />
+      </label>
+    </div>
 
-                {selectedImage && (
-                  <div className="mb-4">
-                    <img
-                      src={URL.createObjectURL(selectedImage)}
-                      className="w-full max-w-[180px] mx-auto rounded-xl border-2 border-[#00F5A0] object-cover aspect-square"
-                      alt="preview"
-                    />
-                    <p className="text-center text-xs text-[#00F5A0] mt-2 truncate">
-                      {selectedImage.name}
-                    </p>
-                  </div>
-                )}
+   
 
-                {/* Disclaimer and Terms for Create Pay Request */}
-                <div className="mb-4">
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-                    <p className="text-xs text-gray-400 mb-3 font-bold">DISCLAIMER:</p>
-                    <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
-                      <li>You are creating a pay request for ₹{uploadAmount || '0'}</li>
-                      <li>This request will expire in 10 minutes if not accepted</li>
-                      <li>Ensure your QR code is valid and scannable</li>
-                      <li>You must have sufficient balance to complete the transaction</li>
-                      <li>By creating this request, you agree to our terms of service</li>
-                    </ul>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={createTermsAccepted}
-                        onChange={(e) => setCreateTermsAccepted(e.target.checked)}
-                        className="w-4 h-4 accent-[#00F5A0]"
-                      />
-                      <span className="text-xs text-gray-300">I agree to the terms and conditions</span>
-                    </label>
-                  </div>
-                </div>
+    {/* Image Preview */}
+    {selectedImage && (
+      <div className="mb-4">
+        <div className="relative inline-block">
+          <img
+            src={URL.createObjectURL(selectedImage)}
+            className="w-full max-w-[180px] mx-auto rounded-xl border-2 border-[#00F5A0] object-cover aspect-square"
+            alt="preview"
+          />
+          <button
+            onClick={() => setSelectedImage(null)}
+            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-all"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="text-center text-xs text-[#00F5A0] mt-2 truncate">
+          {selectedImage.name} ({(selectedImage.size / 1024).toFixed(2)} KB)
+        </p>
+      </div>
+    )}
 
-                <button
-                  onClick={handleCreateScanner}
-                  disabled={actionLoading || !uploadAmount || !selectedImage || !createTermsAccepted}
-                  className={`w-full py-4 rounded-2xl font-black italic ${
-                    actionLoading || !uploadAmount || !selectedImage || !createTermsAccepted
-                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                      : "bg-[#00F5A0] text-black hover:bg-[#00d88c] active:scale-95 transition-all"
-                  }`}
-                >
-                  {actionLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader size={16} className="animate-spin" />
-                      UPLOADING...
-                    </span>
-                  ) : (
-                    "POST TO BILL PAYMENTS"
-                  )}
-                </button>
-              </div>
-            </div>
+    {/* Disclaimer and Terms */}
+    <div className="mb-4">
+      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+        <p className="text-xs text-gray-400 mb-3 font-bold">DISCLAIMER:</p>
+        <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1.5">
+          <li>You are creating a pay request for <span className="text-[#00F5A0]">₹{uploadAmount || '0'}</span></li>
+          <li>This request will expire in <span className="text-yellow-500">10 minutes</span> if not accepted</li>
+          <li>Ensure your QR code is valid and scannable</li>
+          <li>You must have sufficient <span className="text-[#00F5A0]">INR balance</span> to create request</li>
+          <li className="text-yellow-500">⚠️ Only QR code images are allowed. Personal photos will be rejected.</li>
+        </ul>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={createTermsAccepted}
+            onChange={(e) => setCreateTermsAccepted(e.target.checked)}
+            className="w-4 h-4 accent-[#00F5A0]"
+          />
+          <span className="text-xs text-gray-300">I agree to the terms and conditions</span>
+        </label>
+      </div>
+    </div>
+
+    {/* Submit Button */}
+    <button
+      onClick={handleCreateScanner}
+      disabled={actionLoading || !uploadAmount || !selectedImage || !createTermsAccepted}
+      className={`w-full py-4 rounded-2xl font-black italic ${
+        actionLoading || !uploadAmount || !selectedImage || !createTermsAccepted
+          ? "bg-gray-700 text-gray-400 cursor-not-allowed"
+          : "bg-[#00F5A0] text-black hover:bg-[#00d88c] active:scale-95 transition-all"
+      }`}
+    >
+      {actionLoading ? (
+        <span className="flex items-center justify-center gap-2">
+          <Loader size={16} className="animate-spin" />
+          PROCESSING...
+        </span>
+      ) : (
+        "POST TO BILL PAYMENTS"
+      )}
+    </button>
+  </div>
+</div>
 <div>
   <h2 className="text-lg font-black text-white/70 italic mb-4 flex items-center gap-2">
     My Bill Payments
@@ -1712,9 +1965,10 @@ const confirmActivation = async () => {
       )}
 
 {/* Wallet Activation Modal - CORRECTED with Minimum Deposit */}
+{/* Wallet Activation Modal */}
 {showActivationModal && (
   <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[400] p-4 backdrop-blur-sm">
-    <div className="bg-[#0A1F1A] p-6 md:p-8 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
+    <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] w-full max-w-md border border-white/10 shadow-2xl">
       <h3 className="text-xl font-black text-[#00F5A0] mb-4 italic">
         {walletActivated ? 'Increase 7-Day Limit' : 'Activate Wallet for 7 Days'}
       </h3>
@@ -1746,24 +2000,14 @@ const confirmActivation = async () => {
         
         {localInputLimit && localInputLimit > 0 ? (
           <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
-            {/* Current Limit Display (if increasing) */}
-            {walletActivated && (
-              <div className="flex justify-between items-center mb-2">
-                <p className="text-xs text-gray-400">Current Limit:</p>
-                <p className="text-sm font-bold text-white">
-                  ₹{Number(dailyAcceptLimit || activationStatus.dailyLimit || 0).toLocaleString()}
-                </p>
-              </div>
-            )}
-            
-            {/* New 7-Day Limit Display */}
+            {/* Show calculation */}
             <div className="flex justify-between items-center mb-2">
               <p className="text-xs text-gray-400">Your New 7-Day Limit:</p>
               <p className="text-sm font-bold text-white">₹{localInputLimit.toLocaleString()}</p>
             </div>
             
-            {/* Additional Amount Calculation (if increasing) */}
-            {walletActivated && localInputLimit > Number(dailyAcceptLimit || activationStatus.dailyLimit || 0) && (
+            {/* For increase: show additional limit */}
+            {walletActivated && (
               <div className="flex justify-between items-center mb-2 pt-2 border-t border-blue-500/20">
                 <p className="text-xs text-gray-400">Additional Limit:</p>
                 <p className="text-sm font-bold text-green-400">
@@ -1786,7 +2030,7 @@ const confirmActivation = async () => {
               <p className="text-sm font-bold text-[#00F5A0]">1 USDT = ₹95</p>
             </div>
             
-            {/* Activation/Additional Amount in USDT */}
+            {/* Amount to pay in USDT */}
             <div className="flex justify-between items-center pt-2 border-t border-blue-500/20">
               <p className="text-xs text-gray-400">
                 {walletActivated ? 'Additional Payment:' : 'Activation Amount:'}
@@ -1800,7 +2044,7 @@ const confirmActivation = async () => {
               </p>
             </div>
             
-            {/* ✅ MINIMUM DEPOSIT WARNING for first time */}
+            {/* ✅ MINIMUM DEPOSIT WARNING - SHOW ONLY FOR FIRST TIME */}
             {!walletActivated && calculateActivationAmount(localInputLimit) < 50 && (
               <div className="mt-3 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
                 <p className="text-[10px] text-red-400 font-bold flex items-center gap-1">
@@ -1813,14 +2057,26 @@ const confirmActivation = async () => {
               </div>
             )}
             
+            {/* ✅ SHOW MESSAGE FOR INCREASE - NO MINIMUM */}
+            {walletActivated && (
+              <div className="mt-3 p-2 bg-green-500/20 border border-green-500/30 rounded-lg">
+                <p className="text-[10px] text-green-400 font-bold flex items-center gap-1">
+                  <CheckCircle size={12} />
+                  No minimum deposit required for limit increase
+                </p>
+                <p className="text-[8px] text-green-400/70 mt-1">
+                  Pay any amount to increase your limit
+                </p>
+              </div>
+            )}
+            
             {/* Calculation Explanation */}
             <p className="text-[10px] text-gray-500 mt-2 text-center bg-black/20 p-2 rounded-lg">
-              ⚡ {(localInputLimit * 0.1).toFixed(2)} INR ÷ 95 = {calculateActivationAmount(localInputLimit)} USDT
-              {walletActivated && (
-                <span className="block text-[8px] text-green-500 mt-1">
-                  (Additional: ₹{(localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)).toLocaleString()} limit for ${calculateActivationAmount(localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0))} USDT)
-                </span>
-              )}
+              ⚡ {(localInputLimit * 0.1).toFixed(2)} INR ÷ 95 = {calculateActivationAmount(
+                walletActivated 
+                  ? localInputLimit - Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)
+                  : localInputLimit
+              )} USDT
             </p>
             
             {/* Validity Period */}
@@ -1846,10 +2102,15 @@ const confirmActivation = async () => {
             ? 'After successful additional deposit, your 7-day limit will be increased automatically'
             : 'After successful deposit, your wallet will be activated for 7 days automatically'}
         </p>
-        {/* ✅ Add minimum deposit info for first time */}
+        {/* ✅ Show different messages for first time vs increase */}
         {!walletActivated && (
           <p className="text-[8px] text-yellow-500/70 mt-1">
             ⚡ First activation requires minimum $50 USDT deposit
+          </p>
+        )}
+        {walletActivated && (
+          <p className="text-[8px] text-yellow-500/70 mt-1">
+            💰 No minimum deposit required for limit increase
           </p>
         )}
       </div>
@@ -1870,7 +2131,7 @@ const confirmActivation = async () => {
             !localInputLimit || 
             localInputLimit <= 0 || 
             (walletActivated && localInputLimit <= Number(dailyAcceptLimit || activationStatus.dailyLimit || 0)) ||
-            // ✅ Disable if first time and amount < $50
+            // ✅ Disable only for first time if amount < $50
             (!walletActivated && calculateActivationAmount(localInputLimit) < 50)
           }
           className={`flex-1 py-4 rounded-2xl font-black transition-all ${

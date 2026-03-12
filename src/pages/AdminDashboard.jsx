@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Users, CreditCard, RefreshCcw, 
   Settings, LogOut, Check, X, ShieldAlert, Menu, Loader2, ArrowRightLeft,
   Zap, Clock, Search, ScanLine, Eye, ListOrdered, TrendingUp, Award,
-  ChevronDown, ChevronUp, User, Copy, DollarSign, PieChart, BarChart3
+  ChevronDown, ChevronUp, User, Copy, DollarSign, PieChart, BarChart3,
+  Users2, GitBranch, Network, Wallet, Coins, History, Download
 } from "lucide-react";
 import { 
   getAllUsers, getAllDeposits, updateDepositStatus, 
@@ -26,7 +27,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [expandedUser, setExpandedUser] = useState(null);
-  const [statsFilter, setStatsFilter] = useState('total'); // 'today' or 'total'
+  const [expandedLevel, setExpandedLevel] = useState(null);
   
   // Refs for notification tracking
   const prevDepositCount = useRef(0);
@@ -66,7 +67,7 @@ export default function AdminDashboard() {
       setWithdraws(Array.isArray(wData) ? wData : []);
       setScanners(Array.isArray(sData) ? sData : []);
       setTransactions(Array.isArray(tData) ? tData : []);
-      setSystemStats(statsData?.stats || null);
+      setSystemStats(statsData || null);
     } catch (err) {
       console.error("Data Fetch Error:", err);
       toast.error("Failed to load data");
@@ -161,14 +162,7 @@ export default function AdminDashboard() {
             onClick={() => {setActiveTab("Deposits"); setIsSidebarOpen(false);}} 
             highlight={pendingDeposits > 0}
           />
-          <SidebarLink 
-            icon={<ArrowRightLeft size={18}/>} 
-            label="Withdraws" 
-            badge={pendingWithdraws} 
-            active={activeTab === "Withdraws"} 
-            onClick={() => {setActiveTab("Withdraws"); setIsSidebarOpen(false);}} 
-            highlight={pendingWithdraws > 0}
-          />
+         
           <SidebarLink 
             icon={<ScanLine size={18}/>} 
             label="Scanners" 
@@ -228,7 +222,7 @@ export default function AdminDashboard() {
           />
         )}
 
-        {/* USERS TAB - UPDATED WITH FULL DETAILS */}
+        {/* USERS TAB - COMPLETE DETAILS */}
         {activeTab === "Users" && (
           <UsersView 
             users={users}
@@ -237,6 +231,8 @@ export default function AdminDashboard() {
             setSelectedUser={setSelectedUser}
             expandedUser={expandedUser}
             setExpandedUser={setExpandedUser}
+            expandedLevel={expandedLevel}
+            setExpandedLevel={setExpandedLevel}
             copyToClipboard={copyToClipboard}
           />
         )}
@@ -319,12 +315,7 @@ const DashboardView = ({
           highlight={pendingDeposits > 0}
           icon={<CreditCard size={18} />}
         />
-        <StatBox 
-          label="Pending Withdraws" 
-          val={pendingWithdraws} 
-          highlight={pendingWithdraws > 0}
-          icon={<ArrowRightLeft size={18} />}
-        />
+       
       </div>
 
       {/* Volume Stats */}
@@ -334,11 +325,7 @@ const DashboardView = ({
           <p className="text-3xl font-black text-white">${totalDepositVolume.toFixed(2)}</p>
           <p className="text-[8px] text-gray-500 mt-1">Total approved deposits</p>
         </div>
-        <div className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border border-orange-500/20 p-6 rounded-2xl">
-          <p className="text-[10px] text-orange-400 font-black uppercase mb-2">Withdraw Volume</p>
-          <p className="text-3xl font-black text-white">₹{totalWithdrawVolume.toFixed(2)}</p>
-          <p className="text-[8px] text-gray-500 mt-1">Total approved withdraws</p>
-        </div>
+        
         <div className="bg-gradient-to-br from-[#00F5A0]/10 to-green-600/5 border border-[#00F5A0]/20 p-6 rounded-2xl">
           <p className="text-[10px] text-[#00F5A0] font-black uppercase mb-2">Scanner Volume</p>
           <p className="text-3xl font-black text-white">₹{totalScannerVolume.toFixed(2)}</p>
@@ -348,26 +335,7 @@ const DashboardView = ({
 
       {/* Exchange Rate & Recent Transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Exchange Rate Card */}
-        <div className="bg-[#00F5A0] rounded-[2.5rem] p-8 text-[#051510] flex flex-col justify-between min-h-[300px]">
-          <div>
-            <p className="text-[10px] font-black uppercase opacity-60 mb-2 italic">Exchange Rate</p>
-            <h2 className="text-6xl font-black italic tracking-tighter mb-4">₹{exchangeRate}</h2>
-            <input 
-              type="number" 
-              value={exchangeRate} 
-              onChange={(e) => setExchangeRate(e.target.value)} 
-              className="w-full bg-black/10 border border-black/10 rounded-2xl py-5 px-6 font-black text-3xl focus:outline-none mb-4" 
-              placeholder="Enter rate"
-            />
-          </div>
-          <button 
-            onClick={() => updateExchangeRate(exchangeRate)} 
-            className="w-full bg-black text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-2xl active:scale-95 transition-all hover:bg-black/80"
-          >
-            Update Rate
-          </button>
-        </div>
+       
 
         {/* Recent Transactions */}
         <div className="lg:col-span-2 bg-[#0A1F1A] border border-white/10 rounded-[2.5rem] p-6 md:p-8">
@@ -389,11 +357,11 @@ const DashboardView = ({
                     tx.type === 'CREDIT' ? 'text-green-400 bg-green-400/10' :
                     'text-[#00F5A0] bg-[#00F5A0]/10'
                   }`}>
-                    {tx.type[0]}
+                    {tx.type ? tx.type[0] : 'T'}
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-bold truncate">{tx.user?.email || tx.user?.userId || 'System'}</p>
-                    <p className="text-[9px] text-gray-500 font-mono uppercase italic">{tx.type} • {new Date(tx.createdAt).toLocaleTimeString()}</p>
+                    <p className="text-[9px] text-gray-500 font-mono uppercase italic">{tx.type || 'TRANSFER'} • {new Date(tx.createdAt).toLocaleTimeString()}</p>
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
@@ -411,10 +379,11 @@ const DashboardView = ({
   );
 };
 
-/* ================= USERS VIEW - UPDATED WITH FULL DETAILS ================= */
+/* ================= USERS VIEW - COMPLETE DETAILS ================= */
 const UsersView = ({ 
   users, searchTerm, setSearchTerm, setSelectedUser, 
-  expandedUser, setExpandedUser, copyToClipboard 
+  expandedUser, setExpandedUser, expandedLevel, setExpandedLevel,
+  copyToClipboard 
 }) => {
   return (
     <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] md:rounded-[2.5rem] overflow-hidden animate-in fade-in">
@@ -441,9 +410,9 @@ const UsersView = ({
             <tr>
               <th className="px-4 py-5">User</th>
               <th className="px-4 py-5">Wallets</th>
-              <th className="px-4 py-5">Scanners</th>
-              <th className="px-4 py-5">Team</th>
-              <th className="px-4 py-5">Earnings</th>
+              <th className="px-4 py-5">Scanners (Created/Accepted)</th>
+              <th className="px-4 py-5">Team Size</th>
+              <th className="px-4 py-5">Total Earnings</th>
               <th className="px-4 py-5 text-right">Actions</th>
             </tr>
           </thead>
@@ -455,14 +424,13 @@ const UsersView = ({
                 u._id?.toLowerCase().includes(searchTerm.toLowerCase())
               )
               .map(u => {
-                // Calculate team count
-                const teamCount = u.referralTree 
-                  ? Object.values(u.referralTree).reduce((sum, level) => sum + (level?.length || 0), 0)
-                  : 0;
-                
-                // Calculate scanner counts
-                const createdScanners = u.scanners?.created?.length || 0;
-                const acceptedScanners = u.scanners?.accepted?.length || 0;
+                // Calculate team count from referralTree
+                let teamCount = 0;
+                if (u.referralTree) {
+                  for (let i = 1; i <= 21; i++) {
+                    teamCount += u.referralTree[`level${i}`]?.length || 0;
+                  }
+                }
                 
                 return (
                   <React.Fragment key={u._id}>
@@ -487,9 +455,10 @@ const UsersView = ({
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <div className="space-y-1">
-                          <p className="text-[10px] text-blue-400">Created: {createdScanners}</p>
-                          <p className="text-[10px] text-green-400">Accepted: {acceptedScanners}</p>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-blue-400">{u.scanners?.created?.length || 0}</span>
+                          <span className="text-gray-600">/</span>
+                          <span className="text-sm font-bold text-green-400">{u.scanners?.accepted?.length || 0}</span>
                         </div>
                       </td>
                       <td className="px-4 py-4">
@@ -525,11 +494,16 @@ const UsersView = ({
                       </td>
                     </tr>
                     
-                    {/* Expanded User Details */}
+                    {/* Expanded User Details - COMPLETE INFO */}
                     {expandedUser === u._id && (
                       <tr className="bg-black/40">
                         <td colSpan="6" className="px-4 py-6">
-                          <UserExpandedDetails user={u} copyToClipboard={copyToClipboard} />
+                          <UserExpandedDetails 
+                            user={u} 
+                            copyToClipboard={copyToClipboard}
+                            expandedLevel={expandedLevel}
+                            setExpandedLevel={setExpandedLevel}
+                          />
                         </td>
                       </tr>
                     )}
@@ -543,67 +517,163 @@ const UsersView = ({
   );
 };
 
-/* ================= USER EXPANDED DETAILS ================= */
-const UserExpandedDetails = ({ user, copyToClipboard }) => {
+/* ================= USER EXPANDED DETAILS - COMPLETE ================= */
+const UserExpandedDetails = ({ user, copyToClipboard, expandedLevel, setExpandedLevel }) => {
+  // Calculate team members per level
+  const teamLevels = [];
+  for (let i = 1; i <= 21; i++) {
+    const levelMembers = user.referralTree?.[`level${i}`] || [];
+    if (levelMembers.length > 0) {
+      teamLevels.push({
+        level: i,
+        count: levelMembers.length,
+        members: levelMembers
+      });
+    }
+  }
+
+  // Calculate scanner stats
+  const createdScanners = user.scanners?.created || [];
+  const acceptedScanners = user.scanners?.accepted || [];
+  const createdTotal = createdScanners.reduce((sum, s) => sum + (s.amount || 0), 0);
+  const acceptedTotal = acceptedScanners.reduce((sum, s) => sum + (s.amount || 0), 0);
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {/* Referral Info */}
-      <div className="bg-black/40 rounded-xl p-4">
-        <h4 className="text-xs font-bold mb-3 text-[#00F5A0]">Referral Info</h4>
-        <div className="space-y-2">
+    <div className="space-y-6">
+      {/* Quick Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-black/40 p-4 rounded-xl">
+          <p className="text-[8px] text-gray-500">User ID</p>
+          <p className="text-sm font-bold">{user.userId}</p>
+        </div>
+        <div className="bg-black/40 p-4 rounded-xl">
+          <p className="text-[8px] text-gray-500">Referral Code</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-bold text-[#00F5A0]">{user.referralCode}</p>
+            <button onClick={() => copyToClipboard(user.referralCode)} className="text-[#00F5A0] hover:text-[#00d88c]">
+              <Copy size={12} />
+            </button>
+          </div>
+        </div>
+        <div className="bg-black/40 p-4 rounded-xl">
+          <p className="text-[8px] text-gray-500">Joined</p>
+          <p className="text-xs">{new Date(user.createdAt).toLocaleDateString()}</p>
+        </div>
+        <div className="bg-black/40 p-4 rounded-xl">
+          <p className="text-[8px] text-gray-500">Referred By</p>
+          <p className="text-xs">{user.referredBy?.userId || user.referredBy?.email || 'None'}</p>
+        </div>
+      </div>
+
+      {/* Wallets */}
+      <div className="bg-black/40 p-4 rounded-xl">
+        <h4 className="text-xs font-bold mb-3 text-[#00F5A0] flex items-center gap-2">
+          <Wallet size={14} /> Wallet Balances
+        </h4>
+        <div className="grid grid-cols-3 gap-4">
           <div>
-            <p className="text-[8px] text-gray-500">Referral Code</p>
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-mono font-bold">{user.referralCode}</p>
-              <button onClick={() => copyToClipboard(user.referralCode)} className="text-[#00F5A0] hover:text-[#00d88c]">
-                <Copy size={12} />
-              </button>
-            </div>
+            <p className="text-[10px] text-gray-500">USDT</p>
+            <p className="text-lg font-bold text-blue-400">{user.wallets?.USDT?.toFixed(2) || 0}</p>
           </div>
           <div>
-            <p className="text-[8px] text-gray-500">Referred By</p>
-            <p className="text-xs">{user.referredBy?.userId || user.referredBy?.email || 'None'}</p>
+            <p className="text-[10px] text-gray-500">INR</p>
+            <p className="text-lg font-bold text-[#00F5A0]">₹{user.wallets?.INR?.toFixed(2) || 0}</p>
           </div>
           <div>
-            <p className="text-[8px] text-gray-500">Join Date</p>
-            <p className="text-xs">{new Date(user.createdAt).toLocaleString()}</p>
+            <p className="text-[10px] text-gray-500">CASHBACK</p>
+            <p className="text-lg font-bold text-orange-400">₹{user.wallets?.CASHBACK?.toFixed(2) || 0}</p>
           </div>
         </div>
       </div>
 
-      {/* Team Summary */}
-      <div className="bg-black/40 rounded-xl p-4">
-        <h4 className="text-xs font-bold mb-3 text-[#00F5A0]">Team Summary</h4>
-        <div className="space-y-2">
-          {user.referralTree && Object.entries(user.referralTree).map(([level, members]) => {
-            if (!members || members.length === 0) return null;
-            return (
-              <div key={level} className="flex justify-between text-[10px]">
-                <span className="text-gray-400">{level}:</span>
-                <span className="text-[#00F5A0] font-bold">{members.length} members</span>
+      {/* Scanner Stats */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-black/40 p-4 rounded-xl">
+          <h4 className="text-xs font-bold mb-3 text-blue-400 flex items-center gap-2">
+            <ScanLine size={14} /> Created Scanners ({createdScanners.length})
+          </h4>
+          <p className="text-2xl font-bold">₹{createdTotal.toFixed(2)}</p>
+          <p className="text-[8px] text-gray-500 mt-1">Total Volume</p>
+          <div className="mt-2 max-h-32 overflow-y-auto">
+            {createdScanners.map(s => (
+              <div key={s._id} className="text-[8px] text-gray-400 py-1 border-b border-white/5">
+                ₹{s.amount} - {s.status} ({new Date(s.createdAt).toLocaleDateString()})
               </div>
-            );
-          })}
+            ))}
+          </div>
+        </div>
+        <div className="bg-black/40 p-4 rounded-xl">
+          <h4 className="text-xs font-bold mb-3 text-green-400 flex items-center gap-2">
+            <Check size={14} /> Accepted Scanners ({acceptedScanners.length})
+          </h4>
+          <p className="text-2xl font-bold">₹{acceptedTotal.toFixed(2)}</p>
+          <p className="text-[8px] text-gray-500 mt-1">Total Volume</p>
+          <div className="mt-2 max-h-32 overflow-y-auto">
+            {acceptedScanners.map(s => (
+              <div key={s._id} className="text-[8px] text-gray-400 py-1 border-b border-white/5">
+                ₹{s.amount} - Created by: {s.user?.userId}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Earnings Summary */}
-      <div className="bg-black/40 rounded-xl p-4">
-        <h4 className="text-xs font-bold mb-3 text-[#00F5A0]">Earnings by Level</h4>
-        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+      {/* Team Structure - All 21 Levels */}
+      <div className="bg-black/40 p-4 rounded-xl">
+        <h4 className="text-xs font-bold mb-3 text-[#00F5A0] flex items-center gap-2">
+          <Network size={14} /> Team Structure ({teamLevels.reduce((sum, l) => sum + l.count, 0)} members)
+        </h4>
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {teamLevels.map(level => (
+            <div key={level.level} className="border border-white/10 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setExpandedLevel(expandedLevel === level.level ? null : level.level)}
+                className="w-full flex justify-between items-center p-3 bg-black/30 hover:bg-black/50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold">Level {level.level}</span>
+                  <span className="text-[10px] text-[#00F5A0]">{level.count} members</span>
+                </div>
+                {expandedLevel === level.level ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </button>
+              
+              {expandedLevel === level.level && (
+                <div className="p-3 bg-black/20 grid grid-cols-2 gap-2">
+                  {level.members.map(memberId => (
+                    <div key={memberId} className="text-[8px] bg-black/40 p-2 rounded">
+                      <p className="font-mono">{memberId.toString().slice(-8)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          
+          {teamLevels.length === 0 && (
+            <p className="text-center text-gray-500 py-4">No team members yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* Earnings by Level */}
+      <div className="bg-black/40 p-4 rounded-xl">
+        <h4 className="text-xs font-bold mb-3 text-orange-400 flex items-center gap-2">
+          <Coins size={14} /> Commission Earnings
+        </h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
           {user.referralEarnings && Object.entries(user.referralEarnings).map(([level, amount]) => {
             if (level === 'total' || amount === 0) return null;
             return (
-              <div key={level} className="flex justify-between text-[10px] bg-black/30 p-1 rounded">
-                <span className="text-gray-400">{level}:</span>
-                <span className="text-orange-400">₹{amount}</span>
+              <div key={level} className="bg-black/30 p-2 rounded text-center">
+                <p className="text-[8px] text-gray-500">{level}</p>
+                <p className="text-[10px] font-bold text-orange-400">₹{amount}</p>
               </div>
             );
           })}
         </div>
-        <div className="mt-2 pt-2 border-t border-white/10">
+        <div className="mt-3 pt-3 border-t border-white/10">
           <div className="flex justify-between text-xs">
-            <span className="text-gray-400">Total:</span>
+            <span className="text-gray-400">Total Earnings:</span>
             <span className="text-orange-400 font-bold">₹{user.referralEarnings?.total || 0}</span>
           </div>
         </div>
@@ -659,44 +729,7 @@ const DepositsView = ({ deposits, pendingDeposits, handleAction }) => (
   </div>
 );
 
-/* ================= WITHDRAWS VIEW ================= */
-const WithdrawsView = ({ withdraws, pendingWithdraws, handleAction }) => (
-  <div className="space-y-4">
-    <div className="flex items-center justify-between mb-6">
-      <h2 className="text-2xl font-black italic">Withdraw Queue</h2>
-      <div className="bg-orange-500/10 text-orange-500 px-4 py-2 rounded-full text-sm font-bold">
-        {pendingWithdraws} Pending {pendingWithdraws === 1 ? 'Request' : 'Requests'}
-      </div>
-    </div>
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom">
-      {withdraws.map(item => (
-        <div key={item._id} className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem] relative flex flex-col h-full shadow-xl">
-          <div className={`absolute top-0 right-0 px-6 py-2 text-[9px] font-black uppercase italic rounded-bl-2xl ${
-            item.status === 'pending' 
-              ? 'bg-orange-500 text-white animate-pulse' 
-              : item.status === 'approved'
-                ? 'bg-green-500 text-black'
-                : 'bg-red-500 text-white'
-          }`}>{item.status}</div>
-          <div className="mb-6">
-            <p className="text-[10px] font-bold text-gray-600 uppercase mb-4 tracking-tighter">Withdraw Protocol</p>
-            <p className="font-bold text-sm truncate mb-4 text-[#00F5A0]">{item.user?.email || item.userId}</p>
-            <div className="bg-black/40 rounded-2xl p-6 text-center border border-white/5 shadow-inner">
-              <h3 className="text-3xl font-black text-white italic">₹{item.amount}</h3>
-              <p className="text-[9px] text-gray-500 mt-2 italic">Routing: Bank/UPI Transfer</p>
-            </div>
-          </div>
-          {item.status === 'pending' && (
-            <div className="flex gap-2 mt-auto">
-              <button onClick={() => handleAction('WITHDRAW', item._id, 'approved')} className="flex-1 bg-[#00F5A0] text-black py-3.5 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Approve</button>
-              <button onClick={() => handleAction('WITHDRAW', item._id, 'rejected')} className="flex-1 bg-red-500 text-white py-3.5 rounded-xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">Reject</button>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  </div>
-);
+
 
 /* ================= SCANNERS VIEW ================= */
 const ScannersView = ({ scanners }) => (
@@ -792,6 +825,7 @@ const LedgerView = ({ transactions, loadData }) => (
 const UserDetailsModal = ({ user, onClose }) => {
   const [userDetails, setUserDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [expandedLevel, setExpandedLevel] = useState(null);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -815,7 +849,7 @@ const UserDetailsModal = ({ user, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[1000] p-4 overflow-y-auto">
-      <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-[2rem] w-full max-w-6xl max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-[#0A1F1A] p-6 border-b border-white/10 flex justify-between items-center">
           <h2 className="text-2xl font-black italic">User Details: {userDetails?.userId || userDetails?.email}</h2>
           <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg">
@@ -871,6 +905,13 @@ const UserDetailsModal = ({ user, onClose }) => {
               <p className="text-xs text-gray-500 mt-1">
                 Total Amount: ₹{userDetails?.scanners?.created?.reduce((sum, s) => sum + s.amount, 0) || 0}
               </p>
+              <div className="mt-2 max-h-40 overflow-y-auto">
+                {userDetails?.scanners?.created?.map(s => (
+                  <div key={s._id} className="text-[8px] text-gray-400 py-1 border-b border-white/5">
+                    ₹{s.amount} - {s.status} ({new Date(s.createdAt).toLocaleDateString()})
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="bg-black/40 p-4 rounded-xl">
               <h3 className="text-sm font-bold mb-3 text-green-400">Accepted Scanners</h3>
@@ -878,6 +919,13 @@ const UserDetailsModal = ({ user, onClose }) => {
               <p className="text-xs text-gray-500 mt-1">
                 Total Amount: ₹{userDetails?.scanners?.accepted?.reduce((sum, s) => sum + s.amount, 0) || 0}
               </p>
+              <div className="mt-2 max-h-40 overflow-y-auto">
+                {userDetails?.scanners?.accepted?.map(s => (
+                  <div key={s._id} className="text-[8px] text-gray-400 py-1 border-b border-white/5">
+                    ₹{s.amount} - Created by: {s.user?.userId}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -887,19 +935,28 @@ const UserDetailsModal = ({ user, onClose }) => {
               <h3 className="text-sm font-bold mb-3 text-[#00F5A0]">Team Structure ({userDetails.team.total} members)</h3>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {userDetails.team.levels.map(level => (
-                  <div key={level.level} className="border border-white/10 rounded-lg p-3">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs font-bold">Level {level.level}</span>
-                      <span className="text-[10px] text-[#00F5A0]">{level.count} members</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {level.members.map(member => (
-                        <div key={member.userId} className="bg-black/30 p-2 rounded text-[10px]">
-                          <p className="font-bold">{member.userId}</p>
-                          <p className="text-gray-500">Earned: ₹{member.earnings}</p>
-                        </div>
-                      ))}
-                    </div>
+                  <div key={level.level} className="border border-white/10 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setExpandedLevel(expandedLevel === level.level ? null : level.level)}
+                      className="w-full flex justify-between items-center p-3 bg-black/30 hover:bg-black/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold">Level {level.level}</span>
+                        <span className="text-[10px] text-[#00F5A0]">{level.count} members</span>
+                      </div>
+                      {expandedLevel === level.level ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    
+                    {expandedLevel === level.level && (
+                      <div className="p-3 bg-black/20 grid grid-cols-2 gap-2">
+                        {level.members.map(member => (
+                          <div key={member.userId} className="text-[8px] bg-black/40 p-2 rounded">
+                            <p className="font-bold">{member.userId}</p>
+                            <p className="text-gray-500">Earned: ₹{member.earnings}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -909,7 +966,7 @@ const UserDetailsModal = ({ user, onClose }) => {
           {/* Earnings by Level */}
           <div className="bg-black/40 p-4 rounded-xl">
             <h3 className="text-sm font-bold mb-3 text-orange-400">Commission Earnings</h3>
-            <div className="grid grid-cols-3 md:grid-cols-7 gap-2 max-h-60 overflow-y-auto">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-60 overflow-y-auto">
               {Object.entries(userDetails?.earnings || {}).map(([level, amount]) => {
                 if (level === 'total' || amount === 0) return null;
                 return (
@@ -926,6 +983,26 @@ const UserDetailsModal = ({ user, onClose }) => {
               </p>
             </div>
           </div>
+
+          {/* Transactions */}
+          {userDetails?.transactions && userDetails.transactions.length > 0 && (
+            <div className="bg-black/40 p-4 rounded-xl">
+              <h3 className="text-sm font-bold mb-3 text-blue-400">Recent Transactions</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {userDetails.transactions.slice(0, 10).map(tx => (
+                  <div key={tx._id} className="flex justify-between items-center text-[10px] bg-black/30 p-2 rounded">
+                    <div>
+                      <span className="text-gray-400">{new Date(tx.createdAt).toLocaleString()}</span>
+                      <span className={`ml-2 ${tx.type === 'CREDIT' ? 'text-green-400' : 'text-red-400'}`}>
+                        {tx.type}
+                      </span>
+                    </div>
+                    <span className="font-bold text-[#00F5A0]">₹{tx.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

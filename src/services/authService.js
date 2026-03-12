@@ -165,6 +165,33 @@ export const register = async (userData) => {
     // console.log("📥 Register response:", { status: response.status, data }); // Debug log
     
     if (response.ok) {
+      // ✅ Store token and user data in localStorage
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+      }
+      if (data.user) {
+        localStorage.setItem("user", JSON.stringify(data.user));
+      }
+      
+      // ✅ Show welcome bonus toast (without JSX)
+      if (data.bonus) {
+        setTimeout(() => {
+          import('react-hot-toast').then(({ default: toast }) => {
+            toast.success(
+              `🎉 Welcome Bonus! You received $${data.bonus.usdt} USDT (₹${data.bonus.inr})`,
+              { 
+                duration: 8000,
+                style: {
+                  background: '#0A1F1A',
+                  color: 'white',
+                  border: '1px solid #00F5A0',
+                }
+              }
+            );
+          });
+        }, 1000);
+      }
+      
       return { 
         success: true, 
         data: data,
