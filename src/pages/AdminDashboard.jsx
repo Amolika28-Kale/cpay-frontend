@@ -1150,8 +1150,6 @@ const EarningBadge = ({ level, amount }) => (
   </div>
 );
 
-// Add these imports at the top if not present
-// import { ChevronLeft, ChevronRight } from "lucide-react";
 
 /* ================= DEPOSITS VIEW - FULLY RESPONSIVE ================= */
 const DepositsView = ({ deposits, pendingDeposits, handleAction }) => {
@@ -1607,38 +1605,538 @@ const StatCard = ({ label, value, color, highlight, icon }) => {
   );
 };
 
-/* ================= SCANNERS VIEW ================= */
-const ScannersView = ({ scanners }) => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom">
-    {scanners.map(s => (
-      <div key={s._id} className="bg-[#0A1F1A] border border-white/10 p-6 rounded-[2rem] relative flex flex-col shadow-xl">
-        <div className={`absolute top-4 right-6 px-2 py-1 ${
-          s.status === 'ACTIVE' 
-            ? 'bg-green-500/10 text-green-500 animate-pulse' 
-            : s.status === 'COMPLETED'
-              ? 'bg-blue-500/10 text-blue-400'
-              : s.status === 'ACCEPTED'
-                ? 'bg-yellow-500/10 text-yellow-500'
-                : 'bg-gray-500/10 text-gray-400'
-        } text-[9px] font-black uppercase rounded-full`}>{s.status}</div>
-        <div className="bg-white p-3 rounded-2xl mb-6 w-fit mx-auto mt-6 shadow-2xl">
-          <img src={`https://cpay-backend.onrender.com${s.image}`} className="w-24 h-24 object-contain" alt="QR" />
-        </div>
-        <div className="text-center mb-6">
-          <h3 className="text-3xl font-black text-white italic tracking-tighter">₹{s.amount}</h3>
-          <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">Market Listing</p>
-        </div>
-        <div className="mt-auto pt-4 border-t border-white/5">
-          <p className="text-[10px] text-[#00F5A0] font-black uppercase mb-1 truncate">Creator: {s.user?.email || s.user?.userId}</p>
-          <div className="flex justify-between text-[9px] text-gray-600 font-bold uppercase tracking-widest">
-            <span>Taker: {s.acceptedBy?.email?.split('@')[0] || s.acceptedBy?.userId || "Open"}</span>
-            <span>{new Date(s.createdAt).toLocaleDateString()}</span>
+/* ================= SCANNERS VIEW - COMPLETE WITH ALL STATUSES ================= */
+const ScannersView = ({ scanners }) => {
+  const [filter, setFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('newest');
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
+  const [expandedScanner, setExpandedScanner] = useState(null);
+  
+  // Filter scanners
+  const filteredScanners = scanners.filter(s => {
+    if (filter === 'all') return true;
+    return s.status === filter;
+  });
+
+  // Sort scanners
+  const sortedScanners = [...filteredScanners].sort((a, b) => {
+    const dateA = new Date(a.createdAt || 0);
+    const dateB = new Date(b.createdAt || 0);
+    return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(sortedScanners.length / itemsPerPage);
+  const paginatedScanners = sortedScanners.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  // Stats
+  const activeCount = scanners.filter(s => s.status === 'ACTIVE').length;
+  const acceptedCount = scanners.filter(s => s.status === 'ACCEPTED').length;
+  const paymentSubmittedCount = scanners.filter(s => s.status === 'PAYMENT_SUBMITTED').length;
+  const completedCount = scanners.filter(s => s.status === 'COMPLETED').length;
+  const expiredCount = scanners.filter(s => s.status === 'EXPIRED').length;
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+  };
+
+  const formatShortDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Get status color
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'ACTIVE': return 'bg-green-500/20 text-green-500 border-green-500/30';
+      case 'ACCEPTED': return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
+      case 'PAYMENT_SUBMITTED': return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30';
+      case 'COMPLETED': return 'bg-purple-500/20 text-purple-500 border-purple-500/30';
+      case 'EXPIRED': return 'bg-gray-500/20 text-gray-500 border-gray-500/30';
+      default: return 'bg-white/10 text-white/50';
+    }
+  };
+
+  return (
+    <div className="space-y-4 animate-in fade-in">
+      
+      {/* Header with Stats */}
+      <div className="bg-[#0A1F1A] border border-white/10 rounded-xl p-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-black italic flex items-center gap-2">
+              <ScanLine size={20} className="text-[#00F5A0]" />
+              Scanner Queue
+              <span className="bg-[#00F5A0]/10 text-[#00F5A0] text-[10px] px-2 py-1 rounded-full">
+                {scanners.length} Total
+              </span>
+            </h2>
+            
+            {/* Mobile Filter Toggle */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="md:hidden bg-white/5 p-2 rounded-lg"
+            >
+              <Filter size={16} />
+            </button>
+          </div>
+
+          {/* Stats Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+            <StatBadge label="Active" count={activeCount} color="green" />
+            <StatBadge label="Accepted" count={acceptedCount} color="blue" />
+            <StatBadge label="Payment Sub." count={paymentSubmittedCount} color="yellow" />
+            <StatBadge label="Completed" count={completedCount} color="purple" />
+            <StatBadge label="Expired" count={expiredCount} color="gray" />
+          </div>
+
+          {/* Filter Controls */}
+          <div className={`${showFilters ? 'flex' : 'hidden'} md:flex flex-col sm:flex-row gap-2 pt-2 border-t border-white/5`}>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#00F5A0]"
+            >
+              <option value="all">All Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="ACCEPTED">Accepted</option>
+              <option value="PAYMENT_SUBMITTED">Payment Submitted</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="EXPIRED">Expired</option>
+            </select>
+
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#00F5A0]"
+            >
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </select>
+
+            <select
+              value={itemsPerPage}
+              onChange={(e) => {
+                setItemsPerPage(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs font-bold outline-none focus:border-[#00F5A0]"
+            >
+              <option value="10">10 per page</option>
+              <option value="25">25 per page</option>
+              <option value="50">50 per page</option>
+            </select>
+
+            {/* View Mode Toggle */}
+            <div className="flex bg-white/5 rounded-lg p-1 ml-auto">
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`px-3 py-1.5 rounded text-[10px] font-bold transition-all ${
+                  viewMode === 'cards' ? 'bg-[#00F5A0] text-black' : 'text-gray-400'
+                }`}
+              >
+                Cards
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1.5 rounded text-[10px] font-bold transition-all ${
+                  viewMode === 'table' ? 'bg-[#00F5A0] text-black' : 'text-gray-400'
+                }`}
+              >
+                Table
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    ))}
-  </div>
-);
+
+      {/* Desktop Table View */}
+      {viewMode === 'table' && (
+        <div className="hidden md:block bg-[#0A1F1A] border border-white/10 rounded-xl overflow-hidden">
+          <table className="w-full text-left">
+            <thead className="text-[8px] lg:text-[10px] uppercase text-gray-600 font-black border-b border-white/5 bg-black/20">
+              <tr>
+                <th className="px-3 py-3">ID</th>
+                <th className="px-3 py-3">Created By</th>
+                <th className="px-3 py-3">Amount</th>
+                <th className="px-3 py-3">Status</th>
+                <th className="px-3 py-3">Accepted By</th>
+                <th className="px-3 py-3">Created At</th>
+                <th className="px-3 py-3">Completed At</th>
+                <th className="px-3 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {paginatedScanners.map(s => (
+                <tr key={s._id} className="hover:bg-white/[0.02] transition-colors">
+                  <td className="px-3 py-3 font-mono text-[10px]">
+                    {s._id.slice(-8)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#00F5A0] to-green-600 flex items-center justify-center text-black font-bold text-[8px]">
+                        {s.user?.email?.charAt(0)?.toUpperCase() || s.user?.userId?.charAt(0) || 'S'}
+                      </div>
+                      <span className="text-xs font-bold truncate max-w-[100px]">
+                        {s.user?.email || s.user?.userId || 'System'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 font-bold text-[#00F5A0]">
+                    ₹{s.amount}
+                  </td>
+                  <td className="px-3 py-3">
+                    <span className={`inline-block px-2 py-1 text-[8px] font-black uppercase rounded-full ${getStatusColor(s.status)}`}>
+                      {s.status}
+                    </span>
+                  </td>
+                  <td className="px-3 py-3">
+                    {s.acceptedBy ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-[6px]">
+                          {s.acceptedBy.name?.charAt(0) || s.acceptedBy.userId?.charAt(0) || 'A'}
+                        </div>
+                        <span className="text-[10px] truncate max-w-[80px]">
+                          {s.acceptedBy.name || s.acceptedBy.userId || 'Unknown'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-600 text-[10px]">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-[10px] text-gray-400">
+                    {formatShortDate(s.createdAt)}
+                  </td>
+                  <td className="px-3 py-3 text-[10px] text-gray-400">
+                    {s.completedAt ? formatShortDate(s.completedAt) : '—'}
+                  </td>
+                  <td className="px-3 py-3">
+                    <button
+                      onClick={() => setExpandedScanner(expandedScanner === s._id ? null : s._id)}
+                      className="text-[#00F5A0] hover:text-[#00d88c]"
+                    >
+                      {expandedScanner === s._id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Cards View (Default) */}
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 ${viewMode === 'cards' ? 'grid' : 'hidden md:hidden'}`}>
+        {paginatedScanners.map(s => (
+          <ScannerCard 
+            key={s._id}
+            scanner={s}
+            expanded={expandedScanner === s._id}
+            onToggle={() => setExpandedScanner(expandedScanner === s._id ? null : s._id)}
+            formatDate={formatDate}
+            formatShortDate={formatShortDate}
+            getStatusColor={getStatusColor}
+          />
+        ))}
+      </div>
+
+      {/* Empty State */}
+      {paginatedScanners.length === 0 && (
+        <div className="bg-[#0A1F1A] border border-white/10 rounded-xl p-12 text-center">
+          <ScanLine size={48} className="mx-auto mb-3 opacity-30 text-gray-500" />
+          <p className="text-gray-500 font-bold">No scanners found</p>
+          <p className="text-[10px] text-gray-600 mt-1">Try changing your filters</p>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {sortedScanners.length > itemsPerPage && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#0A1F1A] border border-white/10 rounded-xl p-4">
+          <p className="text-[10px] text-gray-500 order-2 sm:order-1">
+            Showing {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, sortedScanners.length)} of {sortedScanners.length}
+          </p>
+          <div className="flex gap-2 order-1 sm:order-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                currentPage === 1 
+                  ? 'bg-white/5 text-gray-600 cursor-not-allowed' 
+                  : 'bg-[#00F5A0] text-black hover:bg-[#00d88c]'
+              }`}
+            >
+              Previous
+            </button>
+            <span className="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-xs font-bold">
+              {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                currentPage === totalPages 
+                  ? 'bg-white/5 text-gray-600 cursor-not-allowed' 
+                  : 'bg-[#00F5A0] text-black hover:bg-[#00d88c]'
+              }`}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ================= SCANNER CARD COMPONENT ================= */
+const ScannerCard = ({ scanner: s, expanded, onToggle, formatDate, formatShortDate, getStatusColor }) => {
+  return (
+    <div className="bg-[#0A1F1A] border border-white/10 rounded-xl overflow-hidden hover:border-white/20 transition-all">
+      {/* Card Header */}
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#00F5A0] to-green-600 flex items-center justify-center text-black font-bold text-xs">
+              {s.user?.email?.charAt(0)?.toUpperCase() || s.user?.userId?.charAt(0) || 'S'}
+            </div>
+            <div>
+              <p className="text-xs font-bold truncate max-w-[120px]">
+                {s.user?.email || s.user?.userId || 'System Request'}
+              </p>
+              <p className="text-[6px] text-gray-500 font-mono">
+                ID: {s._id.slice(-8)}
+              </p>
+            </div>
+          </div>
+          <span className={`px-2 py-1 text-[8px] font-black uppercase rounded-full ${getStatusColor(s.status)}`}>
+            {s.status}
+          </span>
+        </div>
+
+        {/* Amount */}
+        <div className="text-center mb-3">
+          <p className="text-2xl font-black text-[#00F5A0]">₹{s.amount}</p>
+          <p className="text-[8px] text-gray-500">Created: {formatShortDate(s.createdAt)}</p>
+        </div>
+
+        {/* QR Code Preview */}
+        <div className="flex justify-center mb-3">
+          <div className="bg-white p-2 rounded-lg">
+            <img 
+              src={`https://cpay-backend.onrender.com${s.image}`} 
+              className="w-16 h-16 object-contain" 
+              alt="QR" 
+            />
+          </div>
+        </div>
+
+        {/* Quick Info */}
+        <div className="grid grid-cols-2 gap-2 text-[8px]">
+          <div className="bg-black/30 p-2 rounded">
+            <p className="text-gray-500">Accepted By</p>
+            <p className="font-bold truncate">
+              {s.acceptedBy?.name || s.acceptedBy?.userId || '—'}
+            </p>
+          </div>
+          <div className="bg-black/30 p-2 rounded">
+            <p className="text-gray-500">Accepted At</p>
+            <p className="font-bold">
+              {s.acceptedAt ? formatShortDate(s.acceptedAt) : '—'}
+            </p>
+          </div>
+        </div>
+
+        {/* Expand Button */}
+        <button
+          onClick={onToggle}
+          className="w-full mt-3 flex items-center justify-center gap-1 text-[8px] text-gray-500 py-1 border-t border-white/5"
+        >
+          {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          <span>{expanded ? 'Show Less' : 'Show Details'}</span>
+        </button>
+      </div>
+
+      {/* Expanded Details */}
+      {expanded && (
+        <div className="px-4 pb-4 pt-1 border-t border-white/5 space-y-3">
+          {/* Full Timeline */}
+          <div className="bg-black/30 p-3 rounded space-y-2">
+            <p className="text-[8px] font-bold text-[#00F5A0] uppercase tracking-wider">Timeline</p>
+            <div className="space-y-1">
+              <div className="flex justify-between text-[8px]">
+                <span className="text-gray-500">Created:</span>
+                <span className="font-mono">{formatDate(s.createdAt)}</span>
+              </div>
+              {s.acceptedAt && (
+                <div className="flex justify-between text-[8px]">
+                  <span className="text-gray-500">Accepted:</span>
+                  <span className="font-mono">{formatDate(s.acceptedAt)}</span>
+                </div>
+              )}
+              {s.paymentSubmittedAt && (
+                <div className="flex justify-between text-[8px]">
+                  <span className="text-gray-500">Payment Submitted:</span>
+                  <span className="font-mono">{formatDate(s.paymentSubmittedAt)}</span>
+                </div>
+              )}
+              {s.completedAt && (
+                <div className="flex justify-between text-[8px]">
+                  <span className="text-gray-500">Completed:</span>
+                  <span className="font-mono">{formatDate(s.completedAt)}</span>
+                </div>
+              )}
+              {s.expiresAt && (
+                <div className="flex justify-between text-[8px]">
+                  <span className="text-gray-500">Expires:</span>
+                  <span className="font-mono">{formatDate(s.expiresAt)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Creator Details */}
+          <div className="bg-black/30 p-3 rounded">
+            <p className="text-[8px] font-bold text-[#00F5A0] uppercase tracking-wider mb-2">Creator Details</p>
+            <div className="space-y-1 text-[8px]">
+              <div className="flex justify-between">
+                <span className="text-gray-500">User ID:</span>
+                <span className="font-mono">{s.user?._id || 'System'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Email:</span>
+                <span>{s.user?.email || '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">User ID:</span>
+                <span>{s.user?.userId || '—'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Acceptor Details */}
+          {s.acceptedBy && (
+            <div className="bg-black/30 p-3 rounded">
+              <p className="text-[8px] font-bold text-blue-400 uppercase tracking-wider mb-2">Acceptor Details</p>
+              <div className="space-y-1 text-[8px]">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">User ID:</span>
+                  <span className="font-mono">{s.acceptedBy._id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Name:</span>
+                  <span>{s.acceptedBy.name || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">User ID:</span>
+                  <span>{s.acceptedBy.userId || '—'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Screenshots */}
+          {s.paymentScreenshots && s.paymentScreenshots.length > 0 && (
+            <div className="bg-black/30 p-3 rounded">
+              <p className="text-[8px] font-bold text-yellow-400 uppercase tracking-wider mb-2">Payment Screenshots ({s.paymentScreenshots.length})</p>
+              <div className="grid grid-cols-3 gap-1">
+                {s.paymentScreenshots.filter(ss => ss.isActive).map((ss, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => window.open(`https://cpay-backend.onrender.com${ss.url}`)}
+                    className="relative aspect-square rounded overflow-hidden border border-white/10 hover:border-[#00F5A0] transition-all"
+                  >
+                    <img 
+                      src={`https://cpay-backend.onrender.com${ss.url}`}
+                      alt={`screenshot-${idx}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-[4px] text-center py-0.5">
+                      {new Date(ss.uploadedAt).toLocaleTimeString()}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Screenshot History */}
+          {s.screenshotHistory && s.screenshotHistory.length > 0 && (
+            <div className="bg-black/30 p-3 rounded">
+              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-wider mb-2">Screenshot History ({s.screenshotHistory.length})</p>
+              <div className="space-y-1 max-h-32 overflow-y-auto">
+                {s.screenshotHistory.map((history, idx) => (
+                  <div key={idx} className="text-[6px] border-b border-white/5 pb-1">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Changed:</span>
+                      <span>{formatDate(history.changedAt)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">By:</span>
+                      <span>{history.changedBy?.userId || history.changedBy}</span>
+                    </div>
+                    {history.reason && (
+                      <div className="text-gray-400 mt-1">Reason: {history.reason}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Auto Request Info */}
+          {s.isAutoRequest && (
+            <div className="bg-blue-500/10 border border-blue-500/20 p-2 rounded">
+              <p className="text-[8px] text-blue-400 flex items-center gap-1">
+                <Zap size={8} /> Auto Request (Cycle {s.autoRequestCycle || 1})
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ================= STAT BADGE COMPONENT ================= */
+const StatBadge = ({ label, count, color }) => {
+  const colorClasses = {
+    green: 'bg-green-500/10 text-green-500 border-green-500/20',
+    blue: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+    yellow: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+    purple: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
+    gray: 'bg-gray-500/10 text-gray-500 border-gray-500/20'
+  };
+
+  return (
+    <div className={`${colorClasses[color]} border rounded-lg p-2 text-center`}>
+      <p className="text-[8px] font-black uppercase">{label}</p>
+      <p className="text-sm font-bold">{count}</p>
+    </div>
+  );
+};
 
 /* ================= LEDGER VIEW - FULLY RESPONSIVE ================= */
 const LedgerView = ({ transactions, loadData }) => {

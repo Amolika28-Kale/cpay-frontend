@@ -2809,6 +2809,15 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
   const [updateReason, setUpdateReason] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  // ✅ NEW: State to track if proof has been viewed
+  const [proofViewed, setProofViewed] = useState(false);
+
+  // ✅ NEW: Function to handle proof view
+  const handleViewProof = () => {
+    setProofViewed(true);
+    window.open(`https://cpay-backend.onrender.com${s.paymentScreenshot}`);
+  };
+
   // ✅ NEW: Fetch screenshots function
   const fetchScreenshots = async () => {
     try {
@@ -3189,18 +3198,36 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
         {isOwner ? (
           s.status === "PAYMENT_SUBMITTED" ? (
             <div className="space-y-2">
+              {/* ✅ VIEW PROOF button - click केल्याशिवाय confirm button disable */}
               <button 
-                onClick={() => window.open(`https://cpay-backend.onrender.com${s.paymentScreenshot}`)} 
-                className="w-full text-[#00F5A0] text-xs font-bold underline py-2 hover:text-[#00d88c] transition-colors"
+                onClick={handleViewProof}
+                className="w-full text-[#00F5A0] text-xs font-bold underline py-2 hover:text-[#00d88c] transition-colors flex items-center justify-center gap-2"
               >
-                👁️ VIEW PROOF
+                <Camera size={16} />
+                VIEW PROOF
+                {!proofViewed && (
+                  <span className="bg-red-500/20 text-red-400 text-[8px] px-2 py-0.5 rounded-full animate-pulse">
+                    Required
+                  </span>
+                )}
               </button>
+              
+              {/* ✅ CONFIRM RECEIPT button - proofViewed वर condition */}
               {!isAutoRequest && (
                 <button 
-                  onClick={() => confirmRequest(s._id).then(loadAllData)} 
-                  className="w-full bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black py-3 rounded-xl font-black text-sm hover:shadow-lg hover:shadow-[#00F5A0]/20 transition-all"
+                  onClick={() => {
+                    if (proofViewed) {
+                      confirmRequest(s._id).then(loadAllData);
+                    }
+                  }}
+                  disabled={!proofViewed}
+                  className={`w-full py-3 rounded-xl font-black text-sm transition-all ${
+                    proofViewed 
+                      ? "bg-gradient-to-r from-[#00F5A0] to-[#00d88c] text-black hover:shadow-lg hover:shadow-[#00F5A0]/20 cursor-pointer" 
+                      : "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50"
+                  }`}
                 >
-                  ✅ CONFIRM RECEIPT
+                  {proofViewed ? "✅ CONFIRM RECEIPT" : "🔒 VIEW PROOF FIRST"}
                 </button>
               )}
             </div>

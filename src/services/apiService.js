@@ -439,21 +439,22 @@ export const acceptRequest = async (scannerId) => {
     const response = await fetch(`${API_BASE}/scanner/accept`, {
       method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ scannerId }),
     });
-    
+
     const data = await response.json();
-    
+
     if (!response.ok) {
+      // Throw error with message from backend
       throw new Error(data.message || "Failed to accept request");
     }
-    
+
     return data;
   } catch (error) {
-    console.error("AcceptRequest error:", error);
+    console.error("Accept request error:", error);
     throw error;
   }
 };
