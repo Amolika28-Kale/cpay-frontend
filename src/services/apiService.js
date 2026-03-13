@@ -483,6 +483,30 @@ export const confirmRequest = async (scannerId) => {
   return res.json();
 };
 
+// Cancel Scanner Request
+export const cancelRequest = async (scannerId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`${API_BASE}/scanner/cancel/${scannerId}`, {
+      method: "DELETE", // or POST depending on your backend
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to cancel request");
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error("Cancel request error:", error);
+    throw error;
+  }
+};
+
 export const selfPay = async (amount) => {
   try {
     const token = localStorage.getItem("token");

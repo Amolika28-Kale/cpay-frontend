@@ -267,11 +267,7 @@ const [depositUpdateReason, setDepositUpdateReason] = useState("");
 const slots = [
   { id: "1-99", label: "₹1 - ₹99", min: 1, max: 99 }, // ⭐ NEW SLOT
   { id: "100-999", label: "₹100 - ₹999", min: 100, max: 999 },
-  { id: "1000-9999", label: "₹1000 - ₹9999", min: 1000, max: 9999 },
-  { id: "10000-24999", label: "₹10000 - ₹24999", min: 10000, max: 24999 },
-  { id: "25000-49999", label: "₹25000 - ₹49999", min: 25000, max: 49999 },
-  { id: "50000-99999", label: "₹50000 - ₹99999", min: 50000, max: 99999 },
-  { id: "100000+", label: "₹100000+", min: 100000, max: Infinity }
+  { id: "1000-9999", label: "₹1000 - ₹9999", min: 1000, max: 10000},
 ];
 
   const filteredRequests = scanners
@@ -831,8 +827,25 @@ const handleCreateScanner = async () => {
   }
 
   // ========== 2. AMOUNT VALIDATION ==========
-  if (Number(uploadAmount) <= 0) {
+  const amountNum = Number(uploadAmount);  // ✅ या line add करा
+  
+  if (amountNum <= 0) {
     toast.error("Please enter a valid amount");
+    return;
+  }
+
+  // ✅ ADD THIS - MAX LIMIT CHECK
+  if (amountNum > 10000) {
+    toast.error(
+      <div className="flex items-center gap-2">
+        <AlertCircle size={20} className="text-red-500" />
+        <div>
+          <div className="font-bold">Maximum Amount Exceeded! ❌</div>
+          <div className="text-xs">You can only create requests up to ₹10,000</div>
+        </div>
+      </div>,
+      { duration: 4000 }
+    );
     return;
   }
 
@@ -924,6 +937,19 @@ const handleCreateScanner = async () => {
         { duration: 10000 }
       );
     } 
+    // ✅ Handle max limit error from backend
+    else if (error.response?.data?.maxLimit === 10000) {
+      toast.error(
+        <div className="flex items-center gap-2">
+          <AlertCircle size={20} className="text-red-500" />
+          <div>
+            <div className="font-bold">Maximum ₹10,000 Only! ❌</div>
+            <div className="text-xs">{error.response?.data?.message || "Please enter amount between ₹1 - ₹10,000"}</div>
+          </div>
+        </div>,
+        { duration: 4000 }
+      );
+    }
     // ✅ Handle other errors
     else {
       toast.error(error.response?.data?.message || error.message || "Failed to create request");
@@ -996,26 +1022,54 @@ const readImageFile = (file) => {
     });
   };
 
-  const handleCancelRequest = async (requestId) => {
-    try {
-      const toastId = toast.loading('Cancelling request...');
-      // Call your API to cancel the request
-      // const res = await cancelRequest(requestId);
-      
-      toast.dismiss(toastId);
-      toast.success('Request cancelled successfully!');
-      
-      if (requestTimer) {
-        clearTimeout(requestTimer);
-        setRequestTimer(null);
-      }
-      
-      setTimerExpired(false);
-      loadAllData();
-    } catch (error) {
-      toast.error('Failed to cancel request');
+ const handleCancelRequest = async (requestId) => {
+  try {
+    const toastId = toast.loading('Cancelling request...');
+    
+    // ✅ Import cancelRequest from apiService
+    const { cancelRequest } = await import("../services/apiService");
+    const res = await cancelRequest(requestId);
+    
+    toast.dismiss(toastId);
+    
+    if (res.message) {
+      toast.success(
+        <div className="flex items-center gap-2">
+          <CheckCircle size={20} className="text-[#00F5A0]" />
+          <div>
+            <div className="font-bold">Request Cancelled! ✅</div>
+            <div className="text-xs">Your request has been cancelled</div>
+          </div>
+        </div>,
+        { duration: 3000 }
+      );
     }
-  };
+    
+    // Clear any timers
+    if (requestTimer) {
+      clearTimeout(requestTimer);
+      setRequestTimer(null);
+    }
+    
+    setTimerExpired(false);
+    
+    // Refresh the data
+    loadAllData();
+    
+  } catch (error) {
+    toast.dismiss();
+    toast.error(
+      <div className="flex items-center gap-2">
+        <AlertCircle size={20} className="text-red-500" />
+        <div>
+          <div className="font-bold">Failed to Cancel! ❌</div>
+          <div className="text-xs">{error.message || "Something went wrong"}</div>
+        </div>
+      </div>,
+      { duration: 4000 }
+    );
+  }
+};
 
   const handleRedeemCashback = async () => {
     const cashbackWallet = wallets.find(w => w.type === "CASHBACK");
@@ -1442,16 +1496,7 @@ const confirmActivation = async () => {
     </span>
   </div>
   
-  {/* Daily Average - CORRECT: dailyLimit ÷ 7 */}
-  {/* {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
-    <div className="flex justify-between items-center mb-2">
-      <span className="text-xs text-gray-400">Daily Average</span>
-      <span className="text-sm font-bold text-blue-400">
-        ₹{((dailyAcceptLimit || activationStatus.dailyLimit || 0) / 7).toFixed(2)}/day
-      </span>
-    </div>
-  )}
-   */}
+  
   {/* Used in Last 7 Days - CORRECT: sevenDayTotal */}
   <div className="flex justify-between items-center mb-2">
     <span className="text-xs text-gray-400">Used (Last 7 Days)</span>
@@ -1484,17 +1529,7 @@ const confirmActivation = async () => {
         </button>
       )}
   
-  {/* Progress Bar */}
-  {/* {(dailyAcceptLimit || activationStatus.dailyLimit) > 0 && (
-    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mb-4">
-      <div 
-        className="h-full bg-gradient-to-r from-orange-500 to-[#00F5A0] transition-all duration-300"
-        style={{ 
-          width: `${Math.min((Number(todayAcceptedTotal || 0) / Number(dailyAcceptLimit || activationStatus.dailyLimit)) * 100, 100)}%` 
-        }}
-      />
-    </div>
-  )} */}
+
   
 
   
@@ -1540,15 +1575,41 @@ const confirmActivation = async () => {
       </div>
     )}
 
-    {/* Amount Input */}
-    <input
-      type="number"
-      placeholder="Enter Amount (₹)"
-      value={uploadAmount}
-      onChange={(e) => setUploadAmount(e.target.value)}
-      disabled={isRedeemMode}
-      className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 mb-6 font-bold outline-none text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-    />
+    {/* Amount Input - यामध्ये बदल करा */}
+<div className="mb-2">
+  <input
+    type="number"
+    placeholder="Enter Amount (₹1 - ₹10,000)"
+    value={uploadAmount}
+    onChange={(e) => {
+      const value = e.target.value;
+      if (value === "") {
+        setUploadAmount("");
+        return;
+      }
+      const num = Number(value);
+      if (num > 10000) {
+        toast.error("Maximum amount is ₹10,000 per request");
+        return;
+      }
+      if (num < 1) {
+        toast.error("Minimum amount is ₹1");
+        return;
+      }
+      setUploadAmount(value);
+    }}
+    disabled={isRedeemMode}
+    min="1"
+    max="10000"
+    className="w-full bg-black/40 border border-white/10 rounded-xl py-4 px-6 font-bold outline-none text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+  />
+  
+  {/* Min/Max Indicator - हा भाग add करा */}
+  <div className="flex justify-between items-center mt-2 px-2">
+    <span className="text-[10px] text-gray-500">Min: ₹1</span>
+    <span className="text-[10px] text-orange-400 font-bold">Max: ₹10,000</span>
+  </div>
+</div>
     
   {/* QR Code Upload Options - आता कोणतंही फोटो चालेल */}
 <div className="space-y-3">
@@ -1600,15 +1661,17 @@ const confirmActivation = async () => {
       </div>
     )}
 
-  {/* Disclaimer and Terms */}
+{/* Disclaimer and Terms - यामध्ये बदल करा */}
 <div className="mb-4">
   <div className="bg-white/5 p-4 rounded-xl border border-white/10">
     <p className="text-xs text-gray-400 mb-3 font-bold">DISCLAIMER:</p>
     <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1.5">
       <li>You are creating a pay request for <span className="text-[#00F5A0]">₹{uploadAmount || '0'}</span></li>
+      {/* ✅ ही line add करा */}
+      <li>Maximum amount per request: <span className="text-orange-400 font-bold">₹10,000</span></li>
       <li>This request will expire in <span className="text-yellow-500">10 minutes</span> if not accepted</li>
       <li>You must have sufficient <span className="text-[#00F5A0]">INR balance</span> to create request</li>
-      <li className="text-yellow-500">⚠️ Upload clear photo of payment QR code</li>
+      <li className="text-yellow-500">⚠️ Upload clear photo of payment Merchant QR code</li>
     </ul>
     <label className="flex items-center gap-2 cursor-pointer">
       <input
@@ -1750,33 +1813,35 @@ const confirmActivation = async () => {
   })}
 </div>
 
-  {/* Accept Terms */}
-  {activeRequestsCount > 0 && (
-    <div className="mb-4">
-      <div className="bg-white/5 p-4 rounded-xl border border-white/10">
-        <p className="text-xs text-gray-400 mb-3 font-bold">BEFORE ACCEPTING:</p>
+{/* Accept Terms */}
+{activeRequestsCount > 0 && (
+  <div className="mb-4">
+    <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+      <p className="text-xs text-gray-400 mb-3 font-bold">BEFORE ACCEPTING:</p>
 
-        <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
-          <li>You have 10 minutes to complete the payment after accepting</li>
-          <li>Upload clear screenshot of payment proof</li>
-          <li>Wallet must be activated to accept requests</li>
-          <li>Each request expires in 10 minutes if not accepted</li>
-        </ul>
+      <ul className="text-[10px] text-gray-500 list-disc list-inside mb-3 space-y-1">
+        <li>You have 10 minutes to complete the payment after accepting</li>
+        <li>Upload clear screenshot of payment proof</li>
+        <li>Wallet must be activated to accept requests</li>
+        <li>Each request expires in 10 minutes if not accepted</li>
+        {/* ✅ Add this line */}
+        <li className="text-orange-400 font-bold">Maximum acceptance amount: ₹10,000 per request</li>
+      </ul>
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={acceptTermsAccepted}
-            onChange={(e) => setAcceptTermsAccepted(e.target.checked)}
-            className="w-4 h-4 accent-[#00F5A0]"
-          />
-          <span className="text-xs text-gray-300">
-            I agree to the terms and conditions
-          </span>
-        </label>
-      </div>
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={acceptTermsAccepted}
+          onChange={(e) => setAcceptTermsAccepted(e.target.checked)}
+          className="w-4 h-4 accent-[#00F5A0]"
+        />
+        <span className="text-xs text-gray-300">
+          I agree to the terms and conditions
+        </span>
+      </label>
     </div>
-  )}
+  </div>
+)}
 
   {/* REQUEST GRID */}
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom">
@@ -2998,6 +3063,21 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       return;
     }
 
+      // ✅ Add this - Check if amount exceeds ₹10,000
+  if (s.amount > 10000) {
+    toast.error(
+      <div className="flex items-center gap-2">
+        <AlertCircle size={20} className="text-red-500" />
+        <div>
+          <div className="font-bold">Cannot Accept! ❌</div>
+          <div className="text-xs">Maximum acceptance amount is ₹10,000</div>
+        </div>
+      </div>,
+      { duration: 4000 }
+    );
+    return;
+  }
+
     if (!walletActivated) {
       toast(
         <div 
@@ -3713,6 +3793,13 @@ const loadMyDeposits = async () => {
         {selectedMethod && selectedMethod.method.includes("USDT") && (
           <div className="p-4 bg-white/5 rounded-xl mb-6 border border-white/5">
             <p className="text-[#00F5A0] font-black mb-3 uppercase text-xs">Payment Details:</p>
+             {/* ✅ Add Minimum Deposit Info at top */}
+    <div className="mb-4 p-2 bg-orange-500/10 rounded-lg border border-orange-500/20">
+      <p className="text-[10px] text-orange-400 font-bold flex items-center gap-1">
+        <AlertCircle size={12} />
+        Minimum Deposit: $50 USDT
+      </p>
+    </div>
             
             {/* QR Code */}
             <div className="flex justify-center mb-4">
@@ -3835,21 +3922,60 @@ const loadMyDeposits = async () => {
           </div>
         )}
 
-        {/* Amount Input */}
-        <div className="mb-3">
-          <label className="text-xs text-gray-500 mb-1 block">Amount (USDT) *</label>
-          <input 
-            type="number" 
-            value={depositData.amount} 
-            onChange={e => setDepositData({ ...depositData, amount: e.target.value })} 
-            placeholder="Enter amount in USDT" 
-            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0] transition-all" 
-            disabled={showTimer}
-            min="1"
-            step="0.01"
-            required
-          />
-        </div>
+ {/* Amount Input */}
+<div className="mb-3">
+  <label className="text-xs text-gray-500 mb-1 block">Amount (USDT) *</label>
+  <input 
+    type="number" 
+    value={depositData.amount} 
+    onChange={e => {
+      const value = e.target.value;
+      setDepositData({ ...depositData, amount: value });
+      
+      // Optional: Show warning if below minimum
+      if (value && Number(value) < 50) {
+        toast.error("Minimum deposit is $50 USDT", {
+          duration: 2000,
+          icon: '⚠️'
+        });
+      }
+    }} 
+    placeholder="Enter amount in USDT" 
+    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 font-bold text-lg outline-none focus:border-[#00F5A0] transition-all" 
+    disabled={showTimer}
+    min="50"
+    step="0.01"
+    required
+  />
+  
+  {/* ✅ Min/Max Indicator - Add this */}
+  <div className="flex justify-between items-center mt-2 px-2">
+    <span className="text-[10px] text-orange-400 font-bold flex items-center gap-1">
+      <AlertCircle size={10} />
+      Minimum: $50 USDT
+    </span>
+  </div>
+  
+  {/* ✅ Info about INR conversion */}
+  {depositData.amount && Number(depositData.amount) >= 50 && (
+    <div className="mt-2 p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+      <p className="text-[10px] text-blue-400 flex items-center gap-1">
+        <Zap size={10} />
+        You will receive: ₹{(Number(depositData.amount) * 95).toLocaleString()} INR
+      </p>
+    </div>
+  )}
+  
+  {/* ✅ Warning for below minimum */}
+  {depositData.amount && Number(depositData.amount) < 50 && (
+    <div className="mt-2 p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+      <p className="text-[10px] text-red-400 flex items-center gap-1">
+        <AlertCircle size={10} />
+        Minimum deposit amount is $50 USDT
+      </p>
+    </div>
+  )}
+</div>
         
         {/* Transaction Hash Input */}
         <div className="mb-4">
