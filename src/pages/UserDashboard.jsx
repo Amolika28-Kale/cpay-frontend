@@ -411,7 +411,7 @@ useEffect(() => {
       const token = localStorage.getItem("token");
       const status = await getActivationStatus(token);
       
-      console.log("📊 Activation status loaded:", status);
+      // console.log("📊 Activation status loaded:", status);
       
       setActivationStatus(status);
       setWalletActivated(status.activated);
@@ -460,7 +460,7 @@ const loadAllData = async () => {
   try {
     const token = localStorage.getItem("token");
     if (!token) {
-      console.warn("Sync aborted: No token found");
+      // console.warn("Sync aborted: No token found");
       return;
     }
 
@@ -508,7 +508,7 @@ const loadAllData = async () => {
     setTeamStats(team);
 
   } catch (err) {
-    console.error("Sync Error:", err);
+    // console.error("Sync Error:", err);
   } finally {
     setLoading(false);
   }
@@ -571,7 +571,7 @@ const loadMyDeposits = async () => {
       );
     });
   } catch (error) {
-    console.error("Error loading my deposits:", error);
+    // console.error("Error loading my deposits:", error);
     setMyDeposits([]); // ✅ FIX: Set empty array on error
   }
 };
@@ -701,7 +701,7 @@ useEffect(() => {
           await loadAllData();
           localStorage.removeItem("pendingActivation");
         } else {
-          console.error("Activation failed:", data);
+          // console.error("Activation failed:", data);
           if (data.message?.includes("already activated") || data.message?.includes("already at")) {
             setWalletActivated(true);
             setDailyAcceptLimit(data.dailyLimit || dailyLimit);
@@ -715,11 +715,11 @@ useEffect(() => {
           }
         }
       } catch (error) {
-        console.error("Activation failed:", error);
+        // console.error("Activation failed:", error);
         toast.error("Failed to activate wallet");
       }
     } else {
-      console.log("USDT wallet balance not updated yet, waiting...");
+      // console.log("USDT wallet balance not updated yet, waiting...");
     }
   };
   
@@ -808,7 +808,7 @@ const handleDepositSubmit = async () => {
       return false;
     }
   } catch (error) {
-    console.error("Deposit error:", error);
+    // console.error("Deposit error:", error);
     toast.dismiss(toastId);
     toast.error(error?.response?.data?.message || "Deposit submission failed");
     return false;
@@ -2895,7 +2895,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
         setScreenshots(data.screenshots);
       }
     } catch (error) {
-      console.error("Error fetching screenshots:", error);
+      // console.error("Error fetching screenshots:", error);
     }
   };
 
@@ -2930,7 +2930,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
         toast.error(data.message || "Failed to update screenshot");
       }
     } catch (error) {
-      console.error("Error updating screenshot:", error);
+      // console.error("Error updating screenshot:", error);
       toast.error("Failed to update screenshot");
     } finally {
       setUploading(false);
@@ -3150,7 +3150,7 @@ const RequestCard = ({ s, user, loadAllData, setSelectedScanner, handleCancelReq
       
       loadAllData();
     } catch (error) {
-      console.error("Error accepting request:", error);
+      // console.error("Error accepting request:", error);
       toast.error(
         <div className="flex items-center gap-2">
           <AlertCircle size={20} className="text-red-500" />
@@ -3584,7 +3584,7 @@ const loadMyDeposits = async () => {
     const deposits = await getMyDeposits();
     setMyDeposits(Array.isArray(deposits) ? deposits : []);
   } catch (error) {
-    console.error("Error loading deposits:", error);
+    // console.error("Error loading deposits:", error);
     setMyDeposits([]);
   }
 };
@@ -4294,7 +4294,7 @@ useEffect(() => {
         });
       }
     } catch (error) {
-      console.error("Error fetching today stats:", error);
+      // console.error("Error fetching today stats:", error);
     }
   };
   

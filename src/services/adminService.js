@@ -51,7 +51,7 @@ export const getSystemStats = async () => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error fetching system stats:", error);
+    // console.error("Error fetching system stats:", error);
     return null;
   }
 };
@@ -65,7 +65,7 @@ export const getUserDetails = async (userId) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error fetching user details:", error);
+    // console.error("Error fetching user details:", error);
     return null;
   }
 };

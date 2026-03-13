@@ -289,14 +289,14 @@ export const getMyDeposits = async () => {
     
     if (!res.ok) {
       const error = await res.text();
-      console.error("Error response:", error);
+      // console.error("Error response:", error);
       return [];
     }
     
     const data = await res.json();
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error in getMyDeposits:", error);
+    // console.error("Error in getMyDeposits:", error);
     return [];
   }
 };
@@ -411,7 +411,7 @@ export const requestToPay = async (amount, imageFile, upiLink = "") => {
     
     return data;
   } catch (error) {
-    console.error("Request to pay error:", error);
+    // console.error("Request to pay error:", error);
     throw error;
   }
 };
@@ -428,7 +428,7 @@ export const getActiveRequests = async () => {
     }
     return data;
   } catch (error) {
-    console.error("Error fetching active requests:", error);
+    // console.error("Error fetching active requests:", error);
     return [];
   }
 };
@@ -454,7 +454,7 @@ export const acceptRequest = async (scannerId) => {
 
     return data;
   } catch (error) {
-    console.error("Accept request error:", error);
+    // console.error("Accept request error:", error);
     throw error;
   }
 };
@@ -502,7 +502,7 @@ export const cancelRequest = async (scannerId) => {
     
     return await response.json();
   } catch (error) {
-    console.error("Cancel request error:", error);
+    // console.error("Cancel request error:", error);
     throw error;
   }
 };
@@ -536,7 +536,7 @@ export const getScannerScreenshots = async (scannerId) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error fetching screenshots:", error);
+    // console.error("Error fetching screenshots:", error);
     throw error;
   }
 };

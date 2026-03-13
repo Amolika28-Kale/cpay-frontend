@@ -143,7 +143,7 @@ export const adminLogin = async (adminId, pin) => {
       };
     }
   } catch (error) {
-    console.error("❌ Admin login error:", error);
+    // console.error("❌ Admin login error:", error);
     return { 
       success: false, 
       message: error.message || "Network error" 
@@ -205,7 +205,7 @@ export const register = async (userData) => {
       };
     }
   } catch (error) {
-    console.error("❌ Register error:", error);
+    // console.error("❌ Register error:", error);
     return { 
       success: false, 
       message: error.message || "Network error" 
@@ -221,7 +221,8 @@ export const getReferralStats = async (token) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Fetch error:", error);
+    // console.error("Fetch error:", error);
+
     return { message: "Network error" };
   }
 };
@@ -233,7 +234,7 @@ export const getTeamCashbackSummary = async (token) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error fetching team cashback:", error);
+    // console.error("Error fetching team cashback:", error);
     return null;
   }
 };
@@ -250,7 +251,7 @@ export const activateWallet = async (token, dailyLimit) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error activating wallet:", error);
+    // console.error("Error activating wallet:", error);
     return { message: "Network error" };
   }
 };
@@ -262,7 +263,7 @@ export const getActivationStatus = async (token) => {
     });
     return await res.json();
   } catch (error) {
-    console.error("Error fetching activation status:", error);
+    // console.error("Error fetching activation status:", error);
     return { activated: false };
   }
 };
@@ -278,7 +279,7 @@ export const getTodayTeamStats = async (token) => {
     const data = await res.json();
     return data;
   } catch (error) {
-    console.error("Error fetching today's team stats:", error);
+    // console.error("Error fetching today's team stats:", error);
     return { 
       success: false, 
       teamBusiness: 0, 

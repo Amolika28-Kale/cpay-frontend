@@ -418,7 +418,7 @@ export default function Auth() {
         setError(response.message || (isLogin ? "Login failed" : "Registration failed"));
       }
     } catch (err) {
-      console.error("❌ Auth error:", err);
+      // console.error("❌ Auth error:", err);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
